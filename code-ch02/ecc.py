@@ -141,14 +141,16 @@ class Point:
     # end::source1[]
 
     def __ne__(self, other):
-        # this should be the inverse of the == operator
-        raise NotImplementedError
+        return not (self == other)
 
     def __repr__(self):
         if self.x is None:
             return 'Point(infinity)'
         else:
             return 'Point({},{})_{}_{}'.format(self.x, self.y, self.a, self.b)
+
+    def _mutate(self, x, y):
+        return self.__class__(x, y, self.a, self.b)
 
     # tag::source3[]
     def __add__(self, other):  # <2>
@@ -162,22 +164,30 @@ class Point:
             return self
         # end::source3[]
 
-        # Case 1: self.x == other.x, self.y != other.y
-        # Result is point at infinity
+        if self.x == other.x:
+            if self.y != other.y:
+                # Case 1: self.x == other.x, self.y != other.y
+                # Result is point at infinity
+                return self._mutate(None, None)
+            # Case 3: self == other
+            # Formula (x3,y3)=(x1,y1)+(x1,y1)
+            # s=(3*x1**2+a)/(2*y1)
+            # x3=s**2-2*x1
+            # y3=s*(x1-x3)-y1
+            slope = (3 * self.x**2 + self.a) / (2 * self.y)
+            x3 = slope**2 - 2 * self.x
+            y3 = slope * (self.x - x3) - self.y
+            return self._mutate(x3, y3)
 
         # Case 2: self.x ≠ other.x
         # Formula (x3,y3)==(x1,y1)+(x2,y2)
         # s=(y2-y1)/(x2-x1)
         # x3=s**2-x1-x2
         # y3=s*(x1-x3)-y1
-
-        # Case 3: self == other
-        # Formula (x3,y3)=(x1,y1)+(x1,y1)
-        # s=(3*x1**2+a)/(2*y1)
-        # x3=s**2-2*x1
-        # y3=s*(x1-x3)-y1
-
-        raise NotImplementedError
+        slope = (other.y - self.y) / (other.x - self.x)
+        x3 = slope**2 - self.x - other.x
+        y3 = slope * (self.x - x3) - self.y
+        return self._mutate(x3, y3)
 
 
 class PointTest(TestCase):

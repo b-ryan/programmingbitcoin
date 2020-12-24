@@ -22,32 +22,27 @@ class FieldElement:
     # end::source1[]
 
     def __ne__(self, other):
-        # this should be the inverse of the == operator
-        raise NotImplementedError
+        return not self.__eq__(other)
+
+    def _mutate(self, new_num):
+        return self.__class__(new_num, self.prime)
 
     # tag::source2[]
     def __add__(self, other):
         if self.prime != other.prime:  # <1>
             raise TypeError('Cannot add two numbers in different Fields')
-        num = (self.num + other.num) % self.prime  # <2>
-        return self.__class__(num, self.prime)  # <3>
+        return self._mutate((self.num + other.num) % self.prime)
     # end::source2[]
 
     def __sub__(self, other):
         if self.prime != other.prime:
             raise TypeError('Cannot subtract two numbers in different Fields')
-        # self.num and other.num are the actual values
-        # self.prime is what we need to mod against
-        # We return an element of the same class
-        raise NotImplementedError
+        return self._mutate((self.num - other.num) % self.prime)
 
     def __mul__(self, other):
         if self.prime != other.prime:
             raise TypeError('Cannot multiply two numbers in different Fields')
-        # self.num and other.num are the actual values
-        # self.prime is what we need to mod against
-        # We return an element of the same class
-        raise NotImplementedError
+        return self._mutate((self.num * other.num) % self.prime)
 
     # tag::source3[]
     def __pow__(self, exponent):
@@ -59,12 +54,8 @@ class FieldElement:
     def __truediv__(self, other):
         if self.prime != other.prime:
             raise TypeError('Cannot divide two numbers in different Fields')
-        # use fermat's little theorem:
-        # self.num**(p-1) % p == 1
-        # this means:
-        # 1/n == pow(n, p-2, p)
-        # We return an element of the same class
-        raise NotImplementedError
+        mult = pow(other.num, self.prime - 2, self.prime)
+        return self._mutate(self.num * mult % self.prime)
 
 
 class FieldElementTest(TestCase):
