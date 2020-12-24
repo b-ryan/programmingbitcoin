@@ -3,18 +3,6 @@
             [clojure.test :refer [deftest testing are is use-fixtures]]
             [programming-bitcoin.finite-fields :as f]))
 
-(def primes
-  (->> (-> "primes.txt"
-           clojure.java.io/resource
-           slurp
-           clojure.string/split-lines)
-       (map #(Integer/parseInt %))
-       (set)))
-
-(deftest primality
-  (doseq [x (range (inc (apply max primes)))]
-    (is (= (f/prime? x) (contains? primes x)))))
-
 (deftest finite-field-validation
   (are [number prime]
        (s/valid? ::f/field-element (f/e number prime))

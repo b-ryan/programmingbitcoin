@@ -1,38 +1,11 @@
 (ns programming-bitcoin.finite-fields
   (:require [clojure.math.numeric-tower :refer [expt]]
-            [clojure.spec.alpha :as s]))
+            [clojure.spec.alpha :as s]
+            [programming-bitcoin.primes :as primes]))
 
 (require '[clojure.spec.gen.alpha :as gen])
 (require '[clojure.spec.test.alpha :as stest])
 (require '[clojure.test.check.generators :as cgen])
-
-(defn prime?
-  [n]
-  (let [is-factor? (comp zero? (partial mod n))
-        square #(* % %)]
-    (cond (<= n 3) (> n 1)
-          (or (is-factor? 2) (is-factor? 3)) false
-          :else
-          (->> (iterate (partial + 6) 5)
-               (map #(cond
-                       (> (square %) n) true
-                       (or (is-factor? %) (is-factor? (+ % 2))) false))
-               (drop-while nil?)
-               first))))
-
-(def first-primes
-  (->> (-> "primes.txt"
-           clojure.java.io/resource
-           slurp
-           clojure.string/split-lines)
-       (map #(Integer/parseInt %))
-       (set)))
-
-(s/def ::prime
-  (s/with-gen (s/and integer?
-                     pos?
-                     prime?)
-              #(s/gen first-primes)))
 
 (defrecord Element [number prime])
 (def e ->Element)
@@ -40,9 +13,9 @@
 (s/def ::number nat-int?)
 (s/def ::field-element
   (s/with-gen
-   (s/and (s/keys :req-un [::number ::prime])
+   (s/and (s/keys :req-un [::number ::primes/prime])
           #(< (:number %) (:prime %)))
-   #(cgen/let [prime (s/gen ::prime)
+   #(cgen/let [prime (s/gen ::primes/prime)
                number (cgen/large-integer* {:min 0 :max (dec prime)})]
       (e number prime))))
 
