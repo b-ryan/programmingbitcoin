@@ -34,7 +34,8 @@
                      prime?)
               #(s/gen first-primes)))
 
-(defrecord FieldElement [number prime])
+(defrecord Element [number prime])
+(def e ->Element)
 
 (s/def ::number nat-int?)
 (s/def ::field-element
@@ -42,70 +43,80 @@
    (s/and (s/keys :req-un [::number ::prime])
           #(< (:number %) (:prime %)))
    #(cgen/let [prime (s/gen ::prime)
-               number (cgen/large-integer* {:min 0, :max (dec prime)})]
-      (->FieldElement number prime))))
+               number (cgen/large-integer* {:min 0 :max (dec prime)})]
+      (e number prime))))
 
-(defn add
-  [{n1 :number, prime :prime} {n2 :number}]
-  (->FieldElement (mod (+ n1 n2) prime) prime))
+
+(defn- mut
+  "Returns a function that can be used to mutate the `Element` f1.
+
+  The returned function will accept 1 argument, which is the new value for
+  `:number`. This value will be `mod`ed by the `:prime` for the element."
+  [{:keys [prime] :as f1}]
+  #(e (int (mod % prime)) prime))
 
 (s/def ::field-pair
   (s/with-gen (s/and (s/cat :f1 ::field-element
                             :f2 ::field-element)
                      #(= (:prime (:f1 %)) (:prime (:f2 %))))
-              #(cgen/let [{:keys [prime], :as f1} (s/gen ::field-element)
+              #(cgen/let [{:keys [prime] :as f1} (s/gen ::field-element)
                           f2-number (cgen/large-integer*
-                                     {:min 0, :max (dec prime)})]
-                 [f1 (->FieldElement f2-number prime)])))
+                                     {:min 0 :max (dec prime)})]
+                 [f1 (e f2-number prime)])))
 
-(def ^:private first-elem-ret-same-prime
+(def ^:private same-field
   #(= (:prime (:f1 (:args %))) (:prime (:ret %))))
 
-(s/fdef add
-  :args ::field-pair
-  :ret ::field-element
-  :fn first-elem-ret-same-prime)
 
+
+(defn add [{n1 :number :as f1} {n2 :number}] ((mut f1) (+ n1 n2)))
+(s/fdef add :args ::field-pair :ret ::field-element :fn same-field)
 (stest/instrument `add)
 
-#_(add (->FieldElement 3 7) (->FieldElement 6 7))
+#_(add (e 3 7) (e 6 7))
 
 
 
-(defn mul
-  [{n1 :number, prime :prime} {n2 :number}]
-  (->FieldElement (mod (* n1 n2) prime) prime))
+(defn sub [{n1 :number :as f1} {n2 :number}] ((mut f1) (- n1 n2)))
+(s/fdef sub :args ::field-pair :ret ::field-element :fn same-field)
+(stest/instrument `sub)
 
-(s/fdef mul
-  :args ::field-pair
-  :ret ::field-element
-  :fn first-elem-ret-same-prime)
+#_(sub (e 3 7) (e 6 7))
 
+
+
+(defn mul [{n1 :number :as f1} {n2 :number}] ((mut f1) (* n1 n2)))
+(s/fdef mul :args ::field-pair :ret ::field-element :fn same-field)
 (stest/instrument `mul)
 
-#_(mul (->FieldElement 8 19) (->FieldElement 17 19))
+#_(mul (e 8 19) (e 17 19))
 
 
 
 (defn pow
-  [{n1 :number, prime :prime} exponent]
-  (->FieldElement (int (mod (expt n1 exponent) prime)) prime))
-
+  [{n1 :number prime :prime :as f1} exponent]
+  ((mut f1) (expt n1 (mod exponent (dec prime)))))
 (s/fdef pow
-  :args (s/cat :f1 ::field-element
-               :exponent (s/with-gen nat-int?
-                                     #(cgen/large-integer* {:min 0, :max 100})))
+  :args (s/cat :f1 ::field-element :exponent int?)
   :ret ::field-element
-  :fn first-elem-ret-same-prime)
-
+  :fn same-field)
 (stest/instrument `pow)
 
-#_(pow (->FieldElement 0 1493) 1)
+#_(pow (e 0 1493) 1)
 
+
+
+(defn div
+  [{n1 :number prime :prime :as f1} {n2 :number}]
+  ((mut f1) (* n1 (mod (expt n2 (- prime 2)) prime))))
+(s/fdef div :args ::field-pair :ret ::field-element :fn same-field)
+(stest/instrument `div)
+
+#_(div (e 0 1493) (e 4 1493))
 
 
 
 #_(do
     (prn "start")
-    (prn (stest/check `pow))
+    (prn (stest/check `div))
     (prn "end"))
