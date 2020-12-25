@@ -1,6 +1,6 @@
 (ns programming-bitcoin.primes-test
   (:require [clojure.spec.alpha :as s]
-            [clojure.test :refer [deftest testing are is use-fixtures]]
+            [clojure.test :refer [deftest is]]
             [programming-bitcoin.primes :as p]))
 
 (deftest primality

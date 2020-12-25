@@ -1,6 +1,6 @@
 (ns programming-bitcoin.finite-fields-test
   (:require [clojure.spec.alpha :as s]
-            [clojure.test :refer [deftest testing are is use-fixtures]]
+            [clojure.test :refer [deftest are is]]
             [programming-bitcoin.finite-fields :as f]))
 
 (deftest finite-field-validation
@@ -12,9 +12,6 @@
        (not (s/valid? ::f/field-element (f/e number prime)))
        1.1 7
        1 8))
-
-(deftest equality
-  (is (= (f/e 1 7) (f/e 1 7))))
 
 (deftest sub
   (is (= (f/e 25 31) (f/sub (f/e 29 31) (f/e 4 31))))
