@@ -3,15 +3,15 @@
             [clojure.spec.alpha :as s]))
 
 (defprotocol Primitive
-  (add [a b] "Adds a + b")
-  (sub [a b] "Subtracts a - b")
-  (mul [a b] "Multiplies a * b")
-  (pow [a x] "Raises a to the power of x")
-  (div [a b] "Divides a by b")
-  (scalar-mul [a b] "Multiplies a * b where b is a scalar"))
+ (add [a b] "Adds a + b")
+ (sub [a b] "Subtracts a - b")
+ (mul [a b] "Multiplies a * b")
+ (pow [a x] "Raises a to the power of x")
+ (div [a b] "Divides a by b")
+ (scalar-mul [a b] "Multiplies a * b where b is a scalar"))
 
 (extend Number
-  Primitive
-    {:add + :sub - :mul * :pow expt :div / :scalar-mul *})
+ Primitive
+   {:add #'+ :sub #'- :mul #'* :pow #'expt :div #'/ :scalar-mul #'*})
 
-(s/def ::primitive (s/with-gen any? (s/gen int?)))
+(s/def ::primitive (s/with-gen any? (s/gen integer?)))

@@ -13,3 +13,7 @@
   `(let [result# (do ~@body)]
      (def ~sym result#)
      result#))
+
+; (require '[clojure.spec.test.alpha :as stest])
+; (stest/instrument (stest/instrumentable-syms))
+; (stest/instrument 'programming-bitcoin.finite-fields/pow)

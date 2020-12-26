@@ -1,11 +1,10 @@
 (ns programming-bitcoin.elliptic-curves
-  (:refer-clojure :exclude [+ - * /])
-  (:require [clojure.math.numeric-tower :refer [expt]]
-            [clojure.spec.alpha :as s]
+  (:refer-clojure :exclude [+ - * / &])
+  (:require [clojure.spec.alpha :as s]
             [programming-bitcoin.primitives :as prim]))
 
-(require '[clojure.test.check.generators :as cgen])
-(require '[clojure.spec.test.alpha :as stest])
+; (require '[clojure.test.check.generators :as cgen])
+; (require '[clojure.spec.test.alpha :as stest])
 
 (def ^:private + prim/add)
 (def ^:private - prim/sub)
@@ -17,10 +16,10 @@
 (defrecord Point [x y a b])
 (def p ->Point)
 
-(s/def ::x ::prim/primitive)
-(s/def ::y ::prim/primitive)
-(s/def ::a ::prim/primitive)
-(s/def ::b ::prim/primitive)
+#_(s/def ::x ::prim/primitive)
+#_(s/def ::y ::prim/primitive)
+#_(s/def ::a ::prim/primitive)
+#_(s/def ::b ::prim/primitive)
 
 (defn inf [a b] (p :inf :inf a b))
 (defn inf? [{:keys [x y]}] (= [x y] [:inf :inf]))
@@ -33,14 +32,14 @@
              (+ (* a x))
              (+ b)))))
 
-(s/def ::point
-  (s/with-gen (s/and (s/keys :req-un [::x ::y ::a ::b])
-                     on-curve?)
-              #(cgen/let [x (s/gen int?)
-                          y (s/gen int?)
-                          a (s/gen int?)
-                          b (s/gen int?)]
-                 (p x y a b))))
+#_(s/def ::point
+    (s/with-gen (s/and (s/keys :req-un [::x ::y ::a ::b])
+                       on-curve?)
+                #(cgen/let [x (s/gen integer?)
+                            y (s/gen integer?)
+                            a (s/gen integer?)
+                            b (s/gen integer?)]
+                   (p x y a b))))
 
 (defn- same-curve?
   [p1 p2]
@@ -53,14 +52,14 @@
 (def ^:private same-curve?-fn-spec
   (same-curve?-spec (comp :p1 :args) :ret))
 
-(s/def ::point-pair
-  (s/with-gen (s/and (s/cat :p1 ::point
-                            :p2 ::point)
-                     (same-curve?-spec :p1 :p2))
-              #(cgen/let [{:keys [a b] :as p1} (s/gen ::point)
-                          p2-x (s/gen int?)
-                          p2-y (s/gen int?)]
-                 [p1 (p p2-x p2-y a b)])))
+#_(s/def ::point-pair
+    (s/with-gen (s/and (s/cat :p1 ::point
+                              :p2 ::point)
+                       (same-curve?-spec :p1 :p2))
+                #(cgen/let [{:keys [a b] :as p1} (s/gen ::point)
+                            p2-x (s/gen integer?)
+                            p2-y (s/gen integer?)]
+                   [p1 (p p2-x p2-y a b)])))
 
 (defn add
   [{x1 :x y1 :y a :a b :b :as p1} {x2 :x y2 :y :as p2}]
@@ -102,32 +101,45 @@
                  (- y1))]
       (p x3 y3 a b))))
 
-(s/fdef add
-  :args ::point-pair
-  :ret ::point
-  :fn same-curve?-fn-spec)
-
-(stest/instrument `add)
+#_(s/fdef add
+    :args ::point-pair
+    :ret ::point
+    :fn same-curve?-fn-spec)
 
 
+
+(defn- >>
+  [x n]
+  (if (instance? BigInteger x)
+    (.shiftRight x (BigInteger/valueOf n))
+    (bit-shift-right x n)))
+
+(defn- &
+  [x n]
+  (if (instance? BigInteger x)
+    (.and x (BigInteger/valueOf n))
+    (bit-and x n)))
 
 (defn scalar-mul
   [{:keys [x y a b] :as p1} coefficient]
-  (->> (iterate #(bit-shift-right % 1) coefficient)
+  (->> (iterate #(>> % 1) coefficient)
        (take-while (partial < 0))
        (reduce (fn [[result current] coeff]
-                 [(if (> (bit-and coeff 1) 0) (add result current) result)
+                 [(if (> (& coeff 1) 0) (add result current) result)
                   (add current current)])
                [(inf a b) p1])
        (first)))
 
-(s/fdef scalar-mul
-  :args (s/cat :p1 ::point
-               :coefficient int?)
-  :ret ::point
-  :fn same-curve?-fn-spec)
+#_(->> (iterate #(>> % 1) 1)
+       (take-while (partial < 0))
+  )
 
-(stest/instrument `scalar-mul)
+#_(s/fdef scalar-mul
+    :args (s/cat :p1 ::point
+                 :coefficient integer?)
+    :ret ::point
+    :fn same-curve?-fn-spec)
+
 
 ;; coeff x1 y1 x2 y2
 ;; (192 105) * 2 == (49, 71)
