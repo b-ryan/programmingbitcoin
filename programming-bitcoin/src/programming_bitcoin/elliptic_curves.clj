@@ -2,9 +2,10 @@
   (:refer-clojure :exclude [+ - * /])
   (:require [clojure.math.numeric-tower :refer [expt]]
             [clojure.spec.alpha :as s]
-            [programming-bitcoin.primitives :refer [Primitive] :as prim]))
+            [programming-bitcoin.primitives :as prim]))
 
 (require '[clojure.test.check.generators :as cgen])
+(require '[clojure.spec.test.alpha :as stest])
 
 (def ^:private + prim/add)
 (def ^:private - prim/sub)
@@ -21,7 +22,8 @@
 (s/def ::a ::prim/primitive)
 (s/def ::b ::prim/primitive)
 
-(defn- inf? [{:keys [x y]}] (= [x y] [:inf :inf]))
+(defn inf [a b] (p :inf :inf a b))
+(defn inf? [{:keys [x y]}] (= [x y] [:inf :inf]))
 
 (defn- on-curve?
   [{:keys [x y a b] :as point}]
@@ -47,6 +49,9 @@
 (defn- same-curve?-spec
   [p1-fn p2-fn]
   #(same-curve? (p1-fn %) (p2-fn %)))
+
+(def ^:private same-curve?-fn-spec
+  (same-curve?-spec (comp :p1 :args) :ret))
 
 (s/def ::point-pair
   (s/with-gen (s/and (s/cat :p1 ::point
@@ -80,7 +85,7 @@
       (p x3 y3 a b))
     ;; Case 2: self.x == other.x, self.y != other.y
     ;; Result is point at infinity
-    (= x1 x2) (p :inf :inf a b)
+    (= x1 x2) (inf a b)
     ;; Else:
     ;; Formula (x3,y3)==(x1,y1)+(x2,y2)
     ;; s=(y2-y1)/(x2-x1)
@@ -100,10 +105,39 @@
 (s/fdef add
   :args ::point-pair
   :ret ::point
-  :fn (same-curve?-spec (comp :p1 :args) :ret))
+  :fn same-curve?-fn-spec)
 
-(defn mul
-  [p1 p2])
+(stest/instrument `add)
 
-(defn pow
-  [p1 p2])
+
+
+(defn scalar-mul
+  [{:keys [x y a b] :as p1} coefficient]
+  (->> (iterate #(bit-shift-right % 1) coefficient)
+       (take-while (partial < 0))
+       (reduce (fn [[result current] coeff]
+                 [(if (> (bit-and coeff 1) 0) (add result current) result)
+                  (add current current)])
+               [(inf a b) p1])
+       (first)))
+
+(s/fdef scalar-mul
+  :args (s/cat :p1 ::point
+               :coefficient int?)
+  :ret ::point
+  :fn same-curve?-fn-spec)
+
+(stest/instrument `scalar-mul)
+
+;; coeff x1 y1 x2 y2
+;; (192 105) * 2 == (49, 71)
+#_(let [prime 223
+        e programming-bitcoin.finite-fields/e
+        a (e 0 prime)
+        b (e 7 prime)
+        x (e 192 prime)
+        y (e 105 prime)
+        p1 (p x y a b)]
+    (clojure.pprint/pprint (add p1 p1))
+    (clojure.pprint/pprint (scalar-mul p1 2))
+    (println "------------------------------------"))

@@ -1,6 +1,6 @@
 (ns programming-bitcoin.elliptic-curves-test
   (:require [clojure.spec.alpha :as s]
-            [clojure.test :refer [deftest are is]]
+            [clojure.test :refer [deftest is testing]]
             [programming-bitcoin.elliptic-curves :as ec]
             [programming-bitcoin.finite-fields :as f]))
 
@@ -14,14 +14,14 @@
      (= (s/valid? ::ec/point (ec/p x y 5 7)) valid?))))
 
 (deftest add-scalars-inf
-  (let [a (ec/p :inf :inf 5 7)
+  (let [a (ec/inf 5 7)
         b (ec/p 2 5 5 7)
         c (ec/p 2 -5 5 7)]
     (is (= b (ec/add a b)))
     (is (= b (ec/add b a)))))
 
 (deftest add-scalars-x-equal
-  (let [a (ec/p :inf :inf 5 7)
+  (let [a (ec/inf 5 7)
         b (ec/p 2 5 5 7)
         c (ec/p 2 -5 5 7)]
     (is (= a (ec/add b c)))))
@@ -49,3 +49,21 @@
             p2 (ec/p (f/e x2 prime) (f/e y2 prime) a b)
             p3 (ec/p (f/e x3 prime) (f/e y3 prime) a b)]
         (is (= p3 (ec/add p1 p2)))))))
+
+(deftest scalar-mul-points
+  (let [prime 223
+        a (f/e 0 prime)
+        b (f/e 7 prime)
+        multiplications (list [2 192 105 49 71]
+                              [2 143 98 64 168]
+                              [2 47 71 36 111]
+                              [4 47 71 194 51]
+                              [8 47 71 116 55]
+                              [21 47 71 nil nil])]
+    (doseq [[coeff x1-raw y1-raw x2-raw y2-raw :as row] multiplications
+            :let [p1 (ec/p (f/e x1-raw prime) (f/e y1-raw prime) a b)
+                  p2 (if x2-raw
+                       (ec/p (f/e x2-raw prime) (f/e y2-raw prime) a b)
+                       (ec/inf a b))]]
+      (testing (str "scalar multiplication for row " row)
+        (is (= p2 (ec/scalar-mul p1 coeff)))))))

@@ -37,6 +37,9 @@
   [f1-fn f2-fn]
   #(same-field? (f1-fn %) (f2-fn %)))
 
+(def ^:private same-field?-fn-spec
+  (same-field?-spec (comp :f1 :args) :ret))
+
 (s/def ::element-pair
   (s/with-gen (s/and (s/cat :f1 ::element
                             :f2 ::element)
@@ -49,9 +52,6 @@
 (s/conform (s/cat :f1 (s/or :a int? :b string?)
                   :f2 (s/or :a int? :b string?)) [2 "abc"])
 
-
-(def ^:private same-field?-fn-spec
-  (same-field?-spec (comp :f1 :args) :ret))
 
 
 (defn add [{n1 :number :as f1} {n2 :number}] ((mut f1) (+ n1 n2)))
