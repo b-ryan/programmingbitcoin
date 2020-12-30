@@ -8,8 +8,7 @@
 (deftest pub-point
   (let [points
         (list
-         [7
-          0x5cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc
+         [7 0x5cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc
           0x6aebca40ba255960a3178d6d861a54dba813d0b813fde7b5a5082628087264da]
          [1485
           0xc982196a7466fbbbb0e27a940b6af926c1a74d5ad07128c82824a11b5398afda
@@ -50,3 +49,9 @@
            0xc7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab6)
         sig (bc/->Signature r s)]
     (is (bc/valid-signature? point z sig))))
+
+(deftest sign
+  (let [pk (bc/secret->private-key (bc/rand-biginteger bc/N))
+        z (bc/rand-biginteger (.pow (biginteger 2) (biginteger 256)))
+        sig (bc/sign pk z)]
+    (is (bc/valid-signature? (:point pk) z sig))))

@@ -5,36 +5,30 @@
             [programming-bitcoin.finite-fields :as f]))
 
 (deftest valid-points
-  (doseq [[x y valid?] [[2 4 false]
-                        [-1 -1 true]
-                        [18 77 true]
-                        [5 7 false]
+  (doseq [[x y valid?] [[2 4 false] [-1 -1 true] [18 77 true] [5 7 false]
                         [:inf :inf true]]]
-    (is
-     (= (s/valid? ::ec/point (ec/p x y 5 7)) valid?))))
+    (is (= (s/valid? ::ec/point (ec/bi-p x y 5 7)) valid?))))
 
 (deftest add-scalars-inf
   (let [a (ec/inf 5 7)
-        b (ec/p 2 5 5 7)
-        c (ec/p 2 -5 5 7)]
+        b (ec/bi-p 2 5 5 7)
+        c (ec/bi-p 2 -5 5 7)]
     (is (= b (ec/add a b)))
     (is (= b (ec/add b a)))))
 
 (deftest add-scalars-x-equal
   (let [a (ec/inf 5 7)
-        b (ec/p 2 5 5 7)
-        c (ec/p 2 -5 5 7)]
+        b (ec/bi-p 2 5 5 7)
+        c (ec/bi-p 2 -5 5 7)]
     (is (= a (ec/add b c)))))
 
 (deftest add-scalars-same-point
-  (let [a (ec/p -1 -1 5 7)
-        b (ec/p 18 77 5 7)]
-    (is (= b (ec/add a a)))))
+  (let [a (ec/bi-p -1 -1 5 7) b (ec/bi-p 18 77 5 7)] (is (= b (ec/add a a)))))
 
 (deftest add-scalars-nothing-equal
-  (let [a (ec/p 3 7 5 7)
-        b (ec/p -1 -1 5 7)
-        c (ec/p 2 -5 5 7)]
+  (let [a (ec/bi-p 3 7 5 7)
+        b (ec/bi-p -1 -1 5 7)
+        c (ec/bi-p 2 -5 5 7)]
     (is (= c (ec/add a b)))))
 
 (deftest add-finite-field-elements
@@ -66,4 +60,4 @@
                        (ec/p (f/e x2-raw prime) (f/e y2-raw prime) a b)
                        (ec/inf a b))]]
       (testing (str "scalar multiplication for row " row)
-        (is (= p2 (ec/scalar-mul p1 coeff)))))))
+       (is (= p2 (ec/scalar-mul p1 coeff)))))))

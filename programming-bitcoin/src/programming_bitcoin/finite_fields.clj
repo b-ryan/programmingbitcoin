@@ -2,16 +2,16 @@
   (:require [clojure.math.numeric-tower :refer [expt]]
             [clojure.spec.alpha :as s]
             [programming-bitcoin.primes :as primes]
-            [programming-bitcoin.primitives :refer [Primitive]]))
+            [programming-bitcoin.primitives :refer [Primitive biginteger?]]))
 
 ; (require '[clojure.spec.gen.alpha :as gen])
 ; (require '[clojure.spec.test.alpha :as stest])
 ; (require '[clojure.test.check.generators :as cgen])
 
 (defrecord Element [number prime])
-(def e ->Element)
+(defn e [number prime] (->Element (biginteger number) (biginteger prime)))
 
-#_(s/def ::number integer?)
+(s/def ::number biginteger?)
 #_(s/def ::element
     (s/with-gen
      (s/and (s/keys :req-un [::number ::primes/prime])
@@ -19,6 +19,10 @@
      #(cgen/let [prime (s/gen ::primes/prime)
                  number (cgen/large-integer* {:min 0 :max (dec prime)})]
         (e number prime))))
+
+(s/def ::element
+  (s/and (s/keys :req-un [::number ::primes/prime])
+         #(< (:number %) (:prime %))))
 
 
 (defn- mut
@@ -29,33 +33,20 @@
   [{:keys [prime] :as f1}]
   #(e (mod % prime) prime))
 
-(defn- same-field?
-  [f1 f2]
-  (= (:prime f1) (:prime f2)))
+(defn- same-field? [f1 f2] (= (:prime f1) (:prime f2)))
 
-(defn- same-field?-spec
-  [f1-fn f2-fn]
-  #(same-field? (f1-fn %) (f2-fn %)))
+(defn- same-field?-spec [f1-fn f2-fn] #(same-field? (f1-fn %) (f2-fn %)))
 
-(def ^:private same-field?-fn-spec
-  (same-field?-spec (comp :f1 :args) :ret))
+(def ^:private same-field?-fn-spec (same-field?-spec (comp :f1 :args) :ret))
 
 #_(s/def ::element-pair
-    (s/with-gen (s/and (s/cat :f1 ::element
-                              :f2 ::element)
-                       (same-field?-spec :f1 :f2))
-                #(cgen/let [{:keys [prime] :as f1} (s/gen ::element)
-                            f2-number (cgen/large-integer*
-                                       {:min 0 :max (dec prime)})]
-                   [f1 (e f2-number prime)])))
-
-(s/conform (s/cat :f1 (s/or :a integer?
-                            :b string?)
-                  :f2 (s/or :a integer?
-                            :b string?))
-           [2 "abc"])
-
-
+    (s/with-gen
+     (s/and (s/cat :f1 ::element
+                   :f2 ::element)
+            (same-field?-spec :f1 :f2))
+     #(cgen/let [{:keys [prime] :as f1} (s/gen ::element)
+                 f2-number (cgen/large-integer* {:min 0 :max (dec prime)})]
+        [f1 (e f2-number prime)])))
 
 (defn add [{n1 :number :as f1} {n2 :number}] ((mut f1) (+ n1 n2)))
 #_(s/fdef add :args ::element-pair :ret ::element :fn same-field?-fn-spec)
@@ -128,10 +119,7 @@
 
 
 
-#_(do
-    (prn "start")
-    (prn (stest/check `div))
-    (prn "end"))
+#_(do (prn "start") (prn (stest/check `div)) (prn "end"))
 
 (extend Element
  Primitive

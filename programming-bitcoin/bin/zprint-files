@@ -1,0 +1,29 @@
+#!/bin/bash
+set -eu -o pipefail
+
+if ! which zprint &>/dev/null; then
+    cat >&2 << EOF
+This script contains a simple wrapper around the zprint CLI command. You must
+install it locally first, instructions are here:
+https://github.com/kkinnear/zprint/blob/master/doc/graalvm.md
+
+This executable must be avaible as 'zprint'
+EOF
+    exit 1
+fi
+
+if (( $# == 0 )); then
+    echo >&2 "Usage: $0 file [file1 [file2 ...]]"
+    exit 1
+fi
+
+tmpname=$(mktemp)
+trap "rm '$tmpname'" err exit
+
+for fname in "$@"; do
+    if [[ ! -f $fname ]]; then
+        continue
+    fi
+    zprint "$(cat .zprint.edn)" < "$fname" > "$tmpname"
+    cat "$tmpname" > "$fname"
+done

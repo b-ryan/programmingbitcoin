@@ -4,14 +4,8 @@
             [programming-bitcoin.finite-fields :as f]))
 
 (deftest finite-field-validation
-  (are [number prime]
-       (s/valid? ::f/field-element (f/e number prime))
-       1
-       7)
-  (are [number prime]
-       (not (s/valid? ::f/field-element (f/e number prime)))
-       1.1 7
-       1 8))
+  (are [number prime] (s/valid? ::f/element (f/e number prime)) 1 7)
+  (are [number prime] (not (s/valid? ::f/element (f/e number prime))) 19 7 1 8))
 
 (deftest sub
   (is (= (f/e 25 31) (f/sub (f/e 29 31) (f/e 4 31))))
@@ -19,9 +13,7 @@
 
 (deftest pow
   (is (= (f/e 15 31) (f/pow (f/e 17 31) 3)))
-  (is (= (f/e 16 31)
-         (f/mul (f/pow (f/e 5 31) 5)
-                (f/e 18 31)))))
+  (is (= (f/e 16 31) (f/mul (f/pow (f/e 5 31) 5) (f/e 18 31)))))
 
 (deftest div
   (is (= (f/e 4 31) (f/div (f/e 3 31) (f/e 24 31))))

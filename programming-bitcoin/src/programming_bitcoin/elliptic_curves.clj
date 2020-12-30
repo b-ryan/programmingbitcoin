@@ -14,7 +14,14 @@
 (def ^:private s* prim/scalar-mul)
 
 (defrecord Point [x y a b])
-(def p ->Point)
+(def ^{:doc "Creates a `Point`"} p ->Point)
+
+(defn- bi-or-inf [v] (if (= v :inf) v (biginteger v)))
+
+(defn bi-p
+  "Makes a point from bigintegers"
+  [x y a b]
+  (p (bi-or-inf x) (bi-or-inf y) (biginteger a) (biginteger b)))
 
 #_(s/def ::x ::prim/primitive)
 #_(s/def ::y ::prim/primitive)
@@ -33,24 +40,20 @@
              (+ b)))))
 
 #_(s/def ::point
-    (s/with-gen (s/and (s/keys :req-un [::x ::y ::a ::b])
-                       on-curve?)
+    (s/with-gen (s/and (s/keys :req-un [::x ::y ::a ::b]) on-curve?)
                 #(cgen/let [x (s/gen integer?)
                             y (s/gen integer?)
                             a (s/gen integer?)
                             b (s/gen integer?)]
                    (p x y a b))))
 
-(defn- same-curve?
-  [p1 p2]
-  (= ((juxt :a :b) p1) ((juxt :a :b) p2)))
+(s/def ::point (s/and (s/keys :req-un [::x ::y ::a ::b]) on-curve?))
 
-(defn- same-curve?-spec
-  [p1-fn p2-fn]
-  #(same-curve? (p1-fn %) (p2-fn %)))
+(defn- same-curve? [p1 p2] (= ((juxt :a :b) p1) ((juxt :a :b) p2)))
 
-(def ^:private same-curve?-fn-spec
-  (same-curve?-spec (comp :p1 :args) :ret))
+(defn- same-curve?-spec [p1-fn p2-fn] #(same-curve? (p1-fn %) (p2-fn %)))
+
+(def ^:private same-curve?-fn-spec (same-curve?-spec (comp :p1 :args) :ret))
 
 #_(s/def ::point-pair
     (s/with-gen (s/and (s/cat :p1 ::point
@@ -71,17 +74,16 @@
     ;; s=(3*x1**2+a)/(2*y1)
     ;; x3=s**2-2*x1
     ;; y3=s*(x1-x3)-y1
-    (and (= x1 x2) (= y1 y2))
-    (let [slope (-> (** x1 2)
-                    (s* 3)
-                    (+ a)
-                    (/ (s* y1 2)))
-          x3 (-> (** slope 2)
-                 (- (s* x1 2)))
-          y3 (-> (- x1 x3)
-                 (* slope)
-                 (- y1))]
-      (p x3 y3 a b))
+    (and (= x1 x2) (= y1 y2)) (let [slope (-> (** x1 2)
+                                              (s* 3)
+                                              (+ a)
+                                              (/ (s* y1 2)))
+                                    x3 (-> (** slope 2)
+                                           (- (s* x1 2)))
+                                    y3 (-> (- x1 x3)
+                                           (* slope)
+                                           (- y1))]
+                                (p x3 y3 a b))
     ;; Case 2: self.x == other.x, self.y != other.y
     ;; Result is point at infinity
     (= x1 x2) (inf a b)
@@ -90,21 +92,17 @@
     ;; s=(y2-y1)/(x2-x1)
     ;; x3=s**2-x1-x2
     ;; y3=s*(x1-x3)-y1
-    :else
-    (let [slope (-> (- y2 y1)
-                    (/ (- x2 x1)))
-          x3 (-> (** slope 2)
-                 (- x1)
-                 (- x2))
-          y3 (-> (- x1 x3)
-                 (* slope)
-                 (- y1))]
-      (p x3 y3 a b))))
+    :else (let [slope (-> (- y2 y1)
+                          (/ (- x2 x1)))
+                x3 (-> (** slope 2)
+                       (- x1)
+                       (- x2))
+                y3 (-> (- x1 x3)
+                       (* slope)
+                       (- y1))]
+            (p x3 y3 a b))))
 
-#_(s/fdef add
-    :args ::point-pair
-    :ret ::point
-    :fn same-curve?-fn-spec)
+#_(s/fdef add :args ::point-pair :ret ::point :fn same-curve?-fn-spec)
 
 
 
@@ -116,23 +114,21 @@
 
 (defn- &
   [x n]
-  (if (instance? BigInteger x)
-    (.and x (BigInteger/valueOf n))
-    (bit-and x n)))
+  (if (instance? BigInteger x) (.and x (BigInteger/valueOf n)) (bit-and x n)))
 
 (defn scalar-mul
   [{:keys [x y a b] :as p1} coefficient]
+  {:pre [(integer? coefficient)]}
   (->> (iterate #(>> % 1) coefficient)
        (take-while (partial < 0))
-       (reduce (fn [[result current] coeff]
-                 [(if (> (& coeff 1) 0) (add result current) result)
-                  (add current current)])
+       (reduce (fn [[result current] coeff] [(if (> (& coeff 1) 0)
+                                               (add result current)
+                                               result) (add current current)])
                [(inf a b) p1])
        (first)))
 
 #_(->> (iterate #(>> % 1) 1)
-       (take-while (partial < 0))
-  )
+       (take-while (partial < 0)))
 
 #_(s/fdef scalar-mul
     :args (s/cat :p1 ::point

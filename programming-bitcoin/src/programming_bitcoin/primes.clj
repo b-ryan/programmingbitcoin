@@ -8,13 +8,12 @@
         square #(* % %)]
     (cond (<= n 3) (> n 1)
           (or (is-factor? 2) (is-factor? 3)) false
-          :else
-          (->> (iterate (partial + 6) 5)
-               (map #(cond
-                       (> (square %) n) true
-                       (or (is-factor? %) (is-factor? (+ % 2))) false))
-               (drop-while nil?)
-               first))))
+          :else (->> (iterate (partial + 6) 5)
+                     (map #(cond (> (square %) n) true
+                                 (or (is-factor? %) (is-factor? (+ % 2)))
+                                 false))
+                     (drop-while nil?)
+                     first))))
 
 (def first-primes
   (->> (-> "primes.txt"

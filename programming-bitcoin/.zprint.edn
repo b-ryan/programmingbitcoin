@@ -1,0 +1,9 @@
+{:style :community
+ :old? false
+ :map {:comma? false}
+ :fn-map {"defroutes" :arg1
+          "GET" :arg2
+          "POST" :arg2
+          "PATCH" :arg2
+          "DELETE" :arg2
+          "testing" :arg1}}

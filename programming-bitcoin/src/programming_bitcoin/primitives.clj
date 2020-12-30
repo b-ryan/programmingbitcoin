@@ -10,8 +10,25 @@
  (div [a b] "Divides a by b")
  (scalar-mul [a b] "Multiplies a * b where b is a scalar"))
 
-(extend Number
+(defmacro ^:private wrap-biginteger
+  [func]
+  (let [wrapped-name (symbol (str "biginteger-" (subs (name func) 1)))]
+    `(do (defn ~wrapped-name
+           [^BigInteger this# other#]
+           (~func this# (biginteger other#)))
+         #'~wrapped-name)))
+
+(extend BigInteger
  Primitive
-   {:add #'+ :sub #'- :mul #'* :pow #'expt :div #'/ :scalar-mul #'*})
+   {:add (wrap-biginteger .add)
+    :sub (wrap-biginteger .subtract)
+    :mul (wrap-biginteger .multiply)
+    :pow (wrap-biginteger .pow)
+    :div (wrap-biginteger .divide)
+    :scalar-mul #'biginteger-multiply})
+
+;; TODO should mod-pow be in the interface rather than pow? Or in addition to?
 
 (s/def ::primitive (s/with-gen any? (s/gen integer?)))
+
+(defn biginteger? [x] (instance? BigInteger x))
