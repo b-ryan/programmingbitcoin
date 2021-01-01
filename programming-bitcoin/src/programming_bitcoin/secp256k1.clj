@@ -1,25 +1,50 @@
-(ns programming-bitcoin.bitcoin-curve
-  (:require [clojure.math.numeric-tower :refer [expt]]
-            [programming-bitcoin.finite-fields :as ff]
+(ns programming-bitcoin.secp256k1
+  (:require [programming-bitcoin.finite-fields :as ff]
             [programming-bitcoin.elliptic-curves :as ec]
             [programming-bitcoin.primitives :refer [biginteger?]])
   (:import (java.security SecureRandom)))
 
-(def ^:private ^BigInteger prime
+(def
+  ^{:private true
+    :doc
+    "The prime number, as a BigInteger, defining the secp256k1 finite field."}
+  ^BigInteger P
   (-> (.pow (biginteger 2) (biginteger 256))
       (.subtract (.pow (biginteger 2) (biginteger 32)))
       (.subtract (biginteger 977))))
 
-(defn e [number] (ff/e number prime))
+(def
+  ^{:doc
+    "The secp256k1 value, as a BigInteger, for `a` in the elliptic curve
+  formula y^2 = x^3 + a*x + b"}
+  A
+  (biginteger 0))
 
-(defn p
+(def
+  ^{:doc
+    "The secp256k1 value, as a BigInteger, for `b` in the elliptic curve
+  formula y^2 = x^3 + a*x + b"}
+  B
+  (biginteger 7))
+
+(defn e
+  "Creates a programming-bitcoin.finite-fields/Element with the secp256k1
+  prime, `P`."
+  [number]
+  (ff/e number P));; TODO rename to ->e or longer name
+
+(defn p ;; TODO rename
+  "Creates a programming-bitcoin.elliptic-curves/Point on the secp256k1 curve.
+
+  `x` and `y` can either be `Field` instances or integers. When integers, they
+  will be coerced to a BigInteger for you."
   [x y]
   (ec/p (if (integer? x) (e (biginteger x)) x)
         (if (integer? y) (e (biginteger y)) y)
-        (e (biginteger 0))
-        (e (biginteger 7))))
+        (e A)
+        (e B)))
 
-(def ^{:doc "Generator point of the Bitcoin curve."} G
+(def ^{:doc "Generator point of the secp256k1 group."} G
   (p 0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798
      0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8))
 
@@ -37,6 +62,8 @@
 (defrecord Signature [r s])
 
 (defn valid-signature?
+  "Returns boolean indicating whether signature `signature` for input data `z`
+  is a valid signature for the point `point`."
   [point ^BigInteger z {:keys [^BigInteger r ^BigInteger s] :as signature}]
   (let [s-inv (.modPow s (.subtract N (biginteger 2)) N)
         u (.mod (.multiply z s-inv) N)
@@ -84,3 +111,18 @@
               (.multiply k-inv)
               (.mod N))]
     (->Signature r (if (> s (.divide N (biginteger 2))) (.subtract N s) s))))
+
+(defn elem-sqrt
+  "Calculates the square root of the finite field element `elem` which must be
+  on the curve defined by this namespace."
+  [elem]
+  (ff/pow elem (.divide (.add P (biginteger 1)) (biginteger 4))))
+
+(defn calc-y
+  "Given `x`, calculates `y` based on the secp256k1 elliptic curve and whether
+  you want the even or odd `y`."
+  [x {:keys [want-even?]}]
+  (let [alpha (ff/add (ff/pow x 3) (e B))
+        {:keys [number] :as beta} (elem-sqrt alpha)
+        is-even? (= (.mod number (biginteger 2)) (biginteger 0))]
+    (if (= is-even? want-even?) beta (e (.subtract P number)))))

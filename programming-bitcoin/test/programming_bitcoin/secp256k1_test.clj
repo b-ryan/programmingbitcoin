@@ -1,6 +1,6 @@
-(ns programming-bitcoin.bitcoin-curve-test
+(ns programming-bitcoin.secp256k1-test
   (:require [clojure.test :refer [deftest testing is]]
-            [programming-bitcoin.bitcoin-curve :as bc]
+            [programming-bitcoin.secp256k1 :as s256]
             [programming-bitcoin.elliptic-curves :as ec]))
 
 (defn- ** [x y] (.pow (biginteger x) (biginteger y)))
@@ -20,11 +20,11 @@
           0x9577ff57c8234558f293df502ca4f09cbc65a6572c842b39b366f21717945116
           0x10b49c67fa9365ad7b90dab070be339a1daf9052373ec30ffae4f72d5e66d053])]
     (doseq [[secret x y] points]
-      (is (= (bc/p x y) (ec/scalar-mul bc/G secret))))))
+      (is (= (s256/p x y) (ec/scalar-mul s256/G secret))))))
 
 (deftest signature-verification
   (let [point
-        (bc/p
+        (s256/p
          0x887387e452b8eacc4acfde10d9aaf7f6d9a0f975aabb10d006e4da568744d06c
          0x61de6d95231cd89026e286df3b6ae4a894a3378e393e93a0f45b666329a0ae34)
         z (biginteger
@@ -33,12 +33,12 @@
            0xac8d1c87e51d0d441be8b3dd5b05c8795b48875dffe00b7ffcfac23010d3a395)
         s (biginteger
            0x68342ceff8935ededd102dd876ffd6ba72d6a427a3edb13d26eb0781cb423c4)
-        sig (bc/->Signature r s)]
-    (is (bc/valid-signature? point z sig))))
+        sig (s256/->Signature r s)]
+    (is (s256/valid-signature? point z sig))))
 
 (deftest signature-verification-2
   (let [point
-        (bc/p
+        (s256/p
          0x887387e452b8eacc4acfde10d9aaf7f6d9a0f975aabb10d006e4da568744d06c
          0x61de6d95231cd89026e286df3b6ae4a894a3378e393e93a0f45b666329a0ae34)
         z (biginteger
@@ -47,11 +47,11 @@
            0xeff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c)
         s (biginteger
            0xc7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab6)
-        sig (bc/->Signature r s)]
-    (is (bc/valid-signature? point z sig))))
+        sig (s256/->Signature r s)]
+    (is (s256/valid-signature? point z sig))))
 
 (deftest sign
-  (let [pk (bc/secret->private-key (bc/rand-biginteger bc/N))
-        z (bc/rand-biginteger (.pow (biginteger 2) (biginteger 256)))
-        sig (bc/sign pk z)]
-    (is (bc/valid-signature? (:point pk) z sig))))
+  (let [pk (s256/secret->private-key (s256/rand-biginteger s256/N))
+        z (s256/rand-biginteger (.pow (biginteger 2) (biginteger 256)))
+        sig (s256/sign pk z)]
+    (is (s256/valid-signature? (:point pk) z sig))))

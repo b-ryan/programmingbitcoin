@@ -1,6 +1,5 @@
 (ns programming-bitcoin.finite-fields
-  (:require [clojure.math.numeric-tower :refer [expt]]
-            [clojure.spec.alpha :as s]
+  (:require [clojure.spec.alpha :as s]
             [programming-bitcoin.primes :as primes]
             [programming-bitcoin.primitives :refer [Primitive biginteger?]]))
 
@@ -83,8 +82,13 @@
 
 
 (defn pow
+  "Raises the finite field element `f1` to the `exponent` power."
   [{n1 :number prime :prime :as f1} exponent]
-  ((mut f1) (expt n1 (mod exponent (dec prime)))))
+  {:pre [(integer? exponent)]}
+  ((mut f1)
+   (.modPow n1
+            (.mod (biginteger exponent) (.subtract prime (biginteger 1)))
+            prime)))
 
 #_(let
     [prime (- (expt 2 256) (expt 2 32) 977)
@@ -108,11 +112,10 @@
 
 
 (defn div
+  "Divites the finite field element `f1` by another field element."
   [{n1 :number prime :prime :as f1} {n2 :number}]
   ((mut f1)
-   (* n1
-      (let [p (biginteger prime)]
-        (.modPow (biginteger n2) (.subtract p (biginteger 2)) p)))))
+   (* n1 (.modPow (biginteger n2) (.subtract prime (biginteger 2)) prime))))
 
 #_(s/fdef div :args ::element-pair :ret ::element :fn same-field?-fn-spec)
 #_(div (e 0 1493) (e 4 1493))

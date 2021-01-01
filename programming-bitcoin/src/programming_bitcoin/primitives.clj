@@ -1,6 +1,5 @@
 (ns programming-bitcoin.primitives
-  (:require [clojure.math.numeric-tower :refer [expt]]
-            [clojure.spec.alpha :as s]))
+  (:require [clojure.spec.alpha :as s]))
 
 (defprotocol Primitive
  (add [a b] "Adds a + b")

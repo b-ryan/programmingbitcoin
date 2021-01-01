@@ -18,6 +18,6 @@
 ; (stest/instrument (stest/instrumentable-syms))
 ; (stest/instrument 'programming-bitcoin.finite-fields/pow)
 
-(defmacro p-e
+(defmacro pe
   [& body]
   `(try ~@body (catch Exception exc# (prn exc#) (throw exc#))))
