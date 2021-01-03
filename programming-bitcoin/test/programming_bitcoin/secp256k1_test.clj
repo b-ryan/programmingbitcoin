@@ -1,7 +1,8 @@
 (ns programming-bitcoin.secp256k1-test
   (:require [clojure.test :refer [deftest testing is]]
             [programming-bitcoin.secp256k1 :as s256]
-            [programming-bitcoin.elliptic-curves :as ec]))
+            [programming-bitcoin.elliptic-curves :as ec]
+            [programming-bitcoin.primitives :refer [rand-biginteger]]))
 
 (defn- ** [x y] (.pow (biginteger x) (biginteger y)))
 
@@ -51,7 +52,7 @@
     (is (s256/valid-signature? point z sig))))
 
 (deftest sign
-  (let [pk (s256/secret->private-key (s256/rand-biginteger s256/N))
-        z (s256/rand-biginteger (.pow (biginteger 2) (biginteger 256)))
+  (let [pk (s256/secret->private-key (rand-biginteger s256/N))
+        z (rand-biginteger (.pow (biginteger 2) (biginteger 256)))
         sig (s256/sign pk z)]
     (is (s256/valid-signature? (:point pk) z sig))))

@@ -1,6 +1,7 @@
 (ns programming-bitcoin.primes
-  (:require [clojure.spec.alpha :as s]))
-
+  (:require [clojure.spec.alpha :as s]
+            clojure.java.io
+            clojure.string))
 
 (defn prime?
   [n]

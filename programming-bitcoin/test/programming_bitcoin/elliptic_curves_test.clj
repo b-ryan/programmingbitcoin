@@ -42,7 +42,8 @@
       (let [p1 (ec/p (f/e x1 prime) (f/e y1 prime) a b)
             p2 (ec/p (f/e x2 prime) (f/e y2 prime) a b)
             p3 (ec/p (f/e x3 prime) (f/e y3 prime) a b)]
-        (is (= p3 (ec/add p1 p2)))))))
+        (testing (format "add %s + %s" p1 p2)
+          (is (= p3 (ec/add p1 p2))))))))
 
 (deftest scalar-mul-points
   (let [prime 223

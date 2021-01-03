@@ -95,3 +95,34 @@
          sec-uncompressed))
 
 #_(parse X)
+
+
+(defn der
+  [{:keys [r s] :as signature}]
+  (letfn [(cons-count [bytes*] (cons (count bytes*) bytes*))
+          (cons-marker [bytes*] (cons (byte 0x02) bytes*))
+          (cons-start [bytes*] (cons (byte 0x30) bytes*))]
+    (-> (concat
+         (-> r
+             .toByteArray
+             cons-count
+             cons-marker)
+         (-> s
+             .toByteArray
+             cons-count
+             cons-marker))
+        cons-count
+        cons-start
+        bytes->hex-str)))
+
+(defn parse-der
+  [s]
+  (let [bytes* (.toByteArray (BigInteger. s 16))
+        curr (drop 3 bytes*)
+        [r-len curr] [(first curr) (drop 1 curr)]
+        [r-bytes curr] [(take r-len curr) (drop (inc r-len) curr)]
+        [s-len curr] [(first curr) (drop 1 curr)]
+        s-bytes (take s-len curr)]
+    (s256/->sig
+     (BigInteger. (byte-array r-bytes))
+     (BigInteger. (byte-array s-bytes)))))

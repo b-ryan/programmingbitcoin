@@ -2,7 +2,8 @@
   (:require [clojure.test :refer [deftest testing is]]
             [programming-bitcoin.secp256k1 :as s256]
             [programming-bitcoin.elliptic-curves :as ec]
-            [programming-bitcoin.encodings :as e]))
+            [programming-bitcoin.encodings :as e]
+            [programming-bitcoin.primitives :refer [rand-biginteger]]))
 
 (deftest sec-1
   (let
@@ -39,3 +40,12 @@
     (is (= compressed (e/sec-compressed point)))
     (is (= point (e/parse-sec uncompressed)))
     (is (= point (e/parse-sec compressed)))))
+
+(deftest der
+  (let [cases (list [1 2]
+                    [(rand-biginteger (.pow (biginteger 2) (biginteger 256)))
+                     (rand-biginteger (.pow (biginteger 2) (biginteger 255)))])]
+    (doseq [[r s] cases
+            :let [sig (s256/->sig r s)]]
+      (testing (format "DER sig for %s" sig)
+        (is (= sig (e/parse-der (e/der sig))))))))

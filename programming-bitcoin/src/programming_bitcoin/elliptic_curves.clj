@@ -6,12 +6,12 @@
 ; (require '[clojure.test.check.generators :as cgen])
 ; (require '[clojure.spec.test.alpha :as stest])
 
-(def ^:private + prim/add)
-(def ^:private - prim/sub)
-(def ^:private * prim/mul)
-(def ^:private / prim/div)
-(def ^:private ** prim/pow)
-(def ^:private s* prim/scalar-mul)
+(def ^:private + #'prim/add)
+(def ^:private - #'prim/sub)
+(def ^:private * #'prim/mul)
+(def ^:private / #'prim/div)
+(def ^:private ** #'prim/pow)
+(def ^:private s* #'prim/scalar-mul)
 
 (defrecord Point [x y a b])
 (def ^{:doc "Creates a `Point`"} p ->Point)

@@ -1,8 +1,8 @@
 (ns programming-bitcoin.secp256k1
   (:require [programming-bitcoin.finite-fields :as ff]
             [programming-bitcoin.elliptic-curves :as ec]
-            [programming-bitcoin.primitives :refer [biginteger?]])
-  (:import (java.security SecureRandom)))
+            [programming-bitcoin.primitives :refer
+             [biginteger? rand-biginteger]]))
 
 (def
   ^{:private true
@@ -60,6 +60,7 @@
 #_(clojure.pprint/pprint (ec/scalar-mul G N))
 
 (defrecord Signature [r s])
+(defn ->sig [r s] (->Signature (biginteger r) (biginteger s)))
 
 (defn valid-signature?
   "Returns boolean indicating whether signature `signature` for input data `z`
@@ -80,7 +81,7 @@
            0xac8d1c87e51d0d441be8b3dd5b05c8795b48875dffe00b7ffcfac23010d3a395)
         s (biginteger
            0x68342ceff8935ededd102dd876ffd6ba72d6a427a3edb13d26eb0781cb423c4)
-        sig (->Signature r s)]
+        sig (->sig r s)]
     (valid-signature? point z sig))
 
 (defrecord PrivateKey [secret point])
@@ -89,15 +90,6 @@
   [secret]
   {:pre [(integer? secret)]}
   (->PrivateKey (biginteger secret) (ec/scalar-mul G secret)))
-
-(defn rand-biginteger
-  ^BigInteger [max-val]
-  {:pre [(biginteger? max-val)] :post [(biginteger? %)]}
-  ;; TODO not sure if this mod is secure / the right way to do this. Generally,
-  ;; this randomness was put together quickly, questionable (at best) for
-  ;; production use.
-  ;; TODO deterministic k generation (RFC 6979)
-  (.mod (BigInteger. 256 (SecureRandom.)) max-val))
 
 (defn sign
   [{:keys [^BigInteger secret point] :as private-key} z]
@@ -110,7 +102,7 @@
               (.add z)
               (.multiply k-inv)
               (.mod N))]
-    (->Signature r (if (> s (.divide N (biginteger 2))) (.subtract N s) s))))
+    (->sig r (if (> s (.divide N (biginteger 2))) (.subtract N s) s))))
 
 (defn elem-sqrt
   "Calculates the square root of the finite field element `elem` which must be

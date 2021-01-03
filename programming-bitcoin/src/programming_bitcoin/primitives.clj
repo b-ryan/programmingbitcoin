@@ -1,5 +1,6 @@
 (ns programming-bitcoin.primitives
-  (:require [clojure.spec.alpha :as s]))
+  (:require [clojure.spec.alpha :as s])
+  (:import (java.security SecureRandom)))
 
 (defprotocol Primitive
  (add [a b] "Adds a + b")
@@ -31,3 +32,12 @@
 (s/def ::primitive (s/with-gen any? (s/gen integer?)))
 
 (defn biginteger? [x] (instance? BigInteger x))
+
+(defn rand-biginteger
+  ^BigInteger [max-val]
+  {:pre [(biginteger? max-val)] :post [(biginteger? %)]}
+  ;; TODO not sure if this mod is secure / the right way to do this. Generally,
+  ;; this randomness was put together quickly, questionable (at best) for
+  ;; production use.
+  ;; TODO deterministic k generation (RFC 6979)
+  (.mod (BigInteger. 256 (SecureRandom.)) max-val))
