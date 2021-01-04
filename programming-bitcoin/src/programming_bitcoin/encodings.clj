@@ -2,12 +2,6 @@
   (:require [programming-bitcoin.secp256k1 :as s256]
             [programming-bitcoin.finite-fields :as ff]))
 
-(defn- pad
-  "Left pads collection of bytes `bytes*` with byte 0 so `bytes*` has size `n`."
-  [n bytes*]
-  {:pre [(<= (count bytes*) n)]}
-  (concat (repeat (- n (count bytes*)) (byte 0)) bytes*))
-
 (defn- remove-sign
   "Removes the first item from `bytes*` if it is the byte 0.
 
@@ -22,6 +16,47 @@
   [bytes*]
   (if (= (first bytes*) 0) (rest bytes*) bytes*))
 
+(defn- add-sign
+  "Adds a leading byte 0 if the first item in `bytes*`'s first bit is not 0.
+
+  Notably this means this only adds positive signs. Don't expect good things if
+  you might be dealing with negatives."
+  [bytes*]
+  (if (= (bit-and (first bytes*) 0x80) 0) bytes* (cons (byte 0) bytes*)))
+
+(defn hex
+  "Converts collection of bytes `bytes*` to a hex string.
+
+  Does not include 0x at the beginning."
+  [bytes*]
+  (reduce (fn [accum item] (str accum (format "%02x" item))) "" bytes*))
+
+(defn hex->bytes
+  "Converts a hex string into a sequence of bytes."
+  [s]
+  (remove-sign (.toByteArray (BigInteger. s 16))))
+
+(def ^:private b58-alphabet
+  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+
+(defn base58
+  "Converts collection of bytes `bytes*` to a base 58 string."
+  [bytes*]
+  (str
+   (clojure.string/join (repeat (count (take-while (partial = 0) bytes*)) "1"))
+   (loop [num* (BigInteger. (byte-array (add-sign bytes*)))
+          result ""]
+     (if (> num* 0)
+       (let [[next-num mod-val] (.divideAndRemainder num* (biginteger 58))]
+         (recur next-num (str (str (get b58-alphabet mod-val)) result)))
+       result))))
+
+(defn- pad
+  "Left pads collection of bytes `bytes*` with byte 0 so `bytes*` has size `n`."
+  [n bytes*]
+  {:pre [(<= (count bytes*) n)]}
+  (concat (repeat (- n (count bytes*)) (byte 0)) bytes*))
+
 (defn- biginteger->big-endian-32
   "Converts BigInteger `x` to big-endian, returning a vector of 32 bytes.
 
@@ -35,31 +70,20 @@
        remove-sign
        (pad 32)))
 
-(defn- bytes->hex-str
-  "Converts collection of bytes `bytes*` to a hex string.
-
-  Does not include 0x at the beginning."
-  [bytes*]
-  (reduce (fn [accum item] (str accum (format "%02x" item))) "" bytes*))
-
 (defn sec-uncompressed
   "Encodes a `point` with uncompressed SEC format, where `:x` and `:y` of the
   `point` are finite fields."
   [{:keys [x y] :as point}]
-  (bytes->hex-str (cons (byte 4)
-                        (concat (biginteger->big-endian-32 (:number x))
-                                (biginteger->big-endian-32 (:number y))))))
+  (cons (byte 4)
+        (concat (biginteger->big-endian-32 (:number x))
+                (biginteger->big-endian-32 (:number y)))))
 
 (defn sec-compressed
   "Encodes a `point` with compressed SEC format, where `:x` and `:y` of the
   `point` are finite fields."
   [{:keys [x y] :as point}]
-  (bytes->hex-str (cons (byte (if (= (.mod (:number y) (biginteger 2)) 0) 2 3))
-                        (biginteger->big-endian-32 (:number x)))))
-
-(defn- add-sign
-  [bytes*]
-  (if (= (bit-and (first bytes*) 2r10000000) 0) bytes* (cons (byte 0) bytes*)))
+  (cons (byte (if (= (.mod (:number y) (biginteger 2)) 0) 2 3))
+        (biginteger->big-endian-32 (:number x))))
 
 (defn- big-endian-32->biginteger
   [bytes*]
@@ -70,31 +94,28 @@
 
 (defn parse-sec
   "Parses an SEC formatted string into a secp256k1 point."
-  [s]
-  (let [bytes* (.toByteArray (BigInteger. s 16))]
-    (if (= (first bytes*) 4)
-      (s256/p (->> bytes*
-                   (drop 1)
-                   (take 32)
-                   big-endian-32->biginteger)
-              (->> bytes*
-                   (drop 33)
-                   (take 32)
-                   big-endian-32->biginteger))
-      (let [x (->> bytes*
-                   (drop 1)
-                   big-endian-32->biginteger
-                   s256/e)
-            y (s256/calc-y x {:want-even? (= (first bytes*) 2)})]
-        (s256/p x y)))))
+  [bytes*]
+  (if (= (first bytes*) 4)
+    (s256/p (->> bytes*
+                 (drop 1)
+                 (take 32)
+                 big-endian-32->biginteger)
+            (->> bytes*
+                 (drop 33)
+                 (take 32)
+                 big-endian-32->biginteger))
+    (let [x (->> bytes*
+                 (drop 1)
+                 big-endian-32->biginteger
+                 s256/e)
+          y (s256/calc-y x {:want-even? (= (first bytes*) 2)})]
+      (s256/p x y))))
 
-#_(def X
-    (->> (.pow (biginteger 999) (biginteger 3))
-         programming-bitcoin.bitcoin-curve/secret->private-key
-         :point
-         sec-uncompressed))
-
-#_(parse X)
+#_(->> (.pow (biginteger 999) (biginteger 3))
+       programming-bitcoin.bitcoin-curve/secret->private-key
+       :point
+       sec-uncompressed
+       parse)
 
 
 (defn der
@@ -102,27 +123,23 @@
   (letfn [(cons-count [bytes*] (cons (count bytes*) bytes*))
           (cons-marker [bytes*] (cons (byte 0x02) bytes*))
           (cons-start [bytes*] (cons (byte 0x30) bytes*))]
-    (-> (concat
-         (-> r
-             .toByteArray
-             cons-count
-             cons-marker)
-         (-> s
-             .toByteArray
-             cons-count
-             cons-marker))
+    (-> (concat (-> r
+                    .toByteArray
+                    cons-count
+                    cons-marker)
+                (-> s
+                    .toByteArray
+                    cons-count
+                    cons-marker))
         cons-count
-        cons-start
-        bytes->hex-str)))
+        cons-start)))
 
 (defn parse-der
-  [s]
-  (let [bytes* (.toByteArray (BigInteger. s 16))
-        curr (drop 3 bytes*)
+  [bytes*]
+  (let [curr (drop 3 bytes*)
         [r-len curr] [(first curr) (drop 1 curr)]
         [r-bytes curr] [(take r-len curr) (drop (inc r-len) curr)]
         [s-len curr] [(first curr) (drop 1 curr)]
         s-bytes (take s-len curr)]
-    (s256/->sig
-     (BigInteger. (byte-array r-bytes))
-     (BigInteger. (byte-array s-bytes)))))
+    (s256/->sig (BigInteger. (byte-array r-bytes))
+                (BigInteger. (byte-array s-bytes)))))
