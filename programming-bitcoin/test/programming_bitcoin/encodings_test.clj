@@ -137,3 +137,15 @@
   (is (= "1F1Pn2y6pDb68E5nYJJeba4TLg2U7B6KF1"
          (e/point->address (:point (s256/secret->private-key 0x12345deadbeef))
                            {:compressed? true :testnet? false}))))
+
+
+(deftest wif
+  (is (= "cMahea7zqjxrtgAbB7LSGbcQUr1uX1ojuat9jZodMN8rFTv2sfUK"
+         (user/pe (e/wif 5003
+                {:compressed? true :testnet? true}))))
+  (is (= "91avARGdfge8E4tZfYLoxeJ5sGBdNJQH4kvjpWAxgzczjbCwxic"
+         (e/wif (** 2021 5)
+                {:compressed? false :testnet? true})))
+  (is (= "KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgiuQJv1h8Ytr2S53a"
+         (e/wif 0x54321deadbeef
+                {:compressed? true :testnet? false}))))

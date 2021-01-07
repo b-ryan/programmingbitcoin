@@ -62,6 +62,9 @@
 (defn- biginteger->big-endian-32
   "Converts BigInteger `x` to big-endian, returning a vector of 32 bytes.
 
+  This function expects a positive integer and it will not include the two's
+  complement sign bit.
+
   We are assuming you have not given a BigInteger which is too big for 32
   bytes. If you do, the behavior is undefined, but an exception will likely be
   thrown."
@@ -175,3 +178,13 @@
    (base58-with-checksum (cons (byte (if testnet? 0x6f 0))
                                (point->hash160 point
                                                {:compressed? compressed?})))))
+
+(defn wif
+  "Encodes a secret using Wallet Import Format (WIF)."
+  ([secret] (wif secret nil))
+  ([secret {:keys [testnet? compressed?] :or {testnet? false compressed? true}}]
+   {:pre [(integer? secret)]}
+   (base58-with-checksum
+    (concat (list (byte (if testnet? -17 -128)))
+            (biginteger->big-endian-32 (biginteger secret))
+            (when compressed? (list (byte 1)))))))
