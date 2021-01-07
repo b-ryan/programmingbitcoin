@@ -1,5 +1,7 @@
 (ns programming-bitcoin.encodings
-  (:require [programming-bitcoin.secp256k1 :as s256]
+  (:require [pandect.algo.ripemd160 :refer [ripemd160-bytes]]
+            [pandect.algo.sha256 :refer [sha256-bytes]]
+            [programming-bitcoin.secp256k1 :as s256]
             [programming-bitcoin.finite-fields :as ff]))
 
 (defn- remove-sign
@@ -85,6 +87,10 @@
   (cons (byte (if (= (.mod (:number y) (biginteger 2)) 0) 2 3))
         (biginteger->big-endian-32 (:number x))))
 
+(defn sec
+  [point {:keys [compressed?]}]
+  (if compressed? (sec-compressed point) (sec-uncompressed point)))
+
 (defn- big-endian-32->biginteger
   [bytes*]
   (-> bytes*
@@ -143,3 +149,29 @@
         s-bytes (take s-len curr)]
     (s256/->sig (BigInteger. (byte-array r-bytes))
                 (BigInteger. (byte-array s-bytes)))))
+
+
+(def sha256 (comp sha256-bytes byte-array))
+(def ripemd160 (comp ripemd160-bytes byte-array))
+
+(def ^{:doc "Two rounds of sha256"} hash256 (comp sha256 sha256))
+(def ^{:doc "sha256 followed by ripemd160"} hash160 (comp ripemd160 sha256))
+
+(defn base58-with-checksum
+  "Adds 4 bytes of the hash256 checksum and then encodes using base 58."
+  [bytes*]
+  (base58 (concat bytes* (take 4 (hash256 bytes*)))))
+
+(defn point->hash160
+  "Does hash160 on an SEC formatted point (compressed or uncompressed)."
+  ([point] (point->hash160 point nil))
+  ([point {:keys [compressed?] :or {compressed? true}}]
+   (hash160 (sec point {:compressed? compressed?}))))
+
+(defn point->address
+  "Converts a public key point to a Bitcoin address (as a string)."
+  ([point] (point->address point nil))
+  ([point {:keys [testnet? compressed?] :or {testnet? false compressed? true}}]
+   (base58-with-checksum (cons (byte (if testnet? 0x6f 0))
+                               (point->hash160 point
+                                               {:compressed? compressed?})))))
