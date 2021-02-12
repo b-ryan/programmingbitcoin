@@ -5,3 +5,6 @@
 *.orig
 *.rej
 *.patch
+
+testnet*
+.eastwood
