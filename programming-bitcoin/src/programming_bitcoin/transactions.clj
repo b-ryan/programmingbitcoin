@@ -40,11 +40,23 @@
              script-sig
              (e/bytes-lil-e->pos-biginteger sequence-le)) bytes*]))
 
+(defn- serialize-tx-in
+  [{:keys [prev-tx prev-index script-sig sequence*] :as tx-in}]
+  (concat (reverse (e/pad 32 prev-tx))
+          (e/unsigned-bytes-lil-e prev-index 4)
+          (script/serialize script-sig)
+          (e/unsigned-bytes-lil-e sequence* 4)))
+
 (defn- read-tx-out
   [bytes*]
   (let [[amount-le bytes*] (take-drop 8 bytes*)
         [script-pubkey bytes*] (script/parse bytes*)]
     [(->TxOut (e/bytes-lil-e->pos-biginteger amount-le) script-pubkey) bytes*]))
+
+(defn- serialize-tx-out
+  [{:keys [amount script-pubkey] :as tx-out}]
+  (concat (e/unsigned-bytes-lil-e amount 8)
+          (script/serialize script-pubkey)))
 
 (defn parse
   [bytes*]
@@ -59,3 +71,12 @@
           tx-outs
           (e/bytes-lil-e->pos-biginteger locktime-le)
           testnet?)))
+
+(defn serialize
+  [{:keys [version tx-ins tx-outs locktime sequence*] :as tx}]
+  (concat (e/unsigned-bytes-lil-e version 4)
+          (e/encode-varint (biginteger (count tx-ins)))
+          (mapcat serialize-tx-in tx-ins)
+          (e/encode-varint (biginteger (count tx-outs)))
+          (mapcat serialize-tx-out tx-outs)
+          (e/unsigned-bytes-lil-e locktime 4)))

@@ -81,7 +81,7 @@
          (recur next-num (str (str (get b58-alphabet mod-val)) result)))
        result))))
 
-(defn- pad
+(defn pad
   "Left pads collection of bytes `bytes*` with byte 0 so `bytes*` has size `n`."
   [n bytes*]
   (concat (repeat (- n (count bytes*)) (byte 0)) bytes*))
@@ -107,9 +107,9 @@
   ([^BigInteger x] (unsigned-bytes x 0))
   ([^BigInteger x pad*]
    {:pre [(>= x (biginteger 0))]}
-   (->> x
-        unsigned-bytes
-        reverse)))
+   (-> x
+       (unsigned-bytes pad*)
+       reverse)))
 
 (defn- unsigned-bytes-32
   "Converts BigInteger `x` to big-endian, returning a vector of 32 bytes.
