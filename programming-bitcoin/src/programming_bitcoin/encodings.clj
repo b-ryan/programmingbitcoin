@@ -54,7 +54,7 @@
       byte-array
       BigInteger.))
 
-(defn bytes->pos-biginteger-le
+(defn bytes-lil-e->pos-biginteger
   "Converts a little-endian vector of bytes, representing a non-negative
   integer, to a BigInteger.
 
@@ -99,7 +99,7 @@
         remove-sign
         (pad pad*))))
 
-(defn unsigned-bytes-le
+(defn unsigned-bytes-lil-e
   "Returns a little-endian byte sequence for BigInteger `x`, not including a
   sign bit.
 

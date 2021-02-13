@@ -18,26 +18,26 @@
                                                 (+ bytes-read curr-byte)]
       (#{76 77} curr-byte)
       (let [n (if (= curr-byte 76) 1 2)
-            data-len (e/bytes->pos-biginteger-le (take n rest-bytes))]
+            data-len (e/bytes-lil-e->pos-biginteger (take n rest-bytes))]
         [(take data-len (drop n rest-bytes)) (+ bytes-read n data-len)])
       :else [curr-byte bytes-read])))
 
 (defn parse
-  "Parses a byte array into a `Script`."
+  "Parses a byte array into a `Script`. Returns the script and the unread
+  bytes*."
   [bytes*]
   (let [[len rest*] (e/read-varint bytes*)]
-    (->script
-     (loop [cmds []
-            total-bytes-read 0
-            curr-bytes rest*]
-       (cond (> total-bytes-read len)
-             (throw (ex-info "Parsing script failed"
-                             {:len len :total-bytes-read total-bytes-read}))
-             (= total-bytes-read len) cmds
-             :else (let [[new-cmd bytes-read] (parse-op curr-bytes)]
-                     (recur (conj cmds new-cmd)
-                            (+ total-bytes-read bytes-read)
-                            (drop bytes-read curr-bytes))))))))
+    (loop [cmds []
+           total-bytes-read 0
+           rest* rest*]
+      (cond (> total-bytes-read len)
+            (throw (ex-info "Parsing script failed"
+                            {:len len :total-bytes-read total-bytes-read}))
+            (= total-bytes-read len) [(->script cmds) rest*]
+            :else (let [[new-cmd bytes-read] (parse-op rest*)]
+                    (recur (conj cmds new-cmd)
+                           (+ total-bytes-read bytes-read)
+                           (drop bytes-read rest*)))))))
 
 (defn serialize
   "Encodes a `Script` to a byte sequence."
@@ -47,10 +47,10 @@
          (fn [accum cmd]
            (into
             accum
-            (if (integer? cmd)
-              (e/unsigned-bytes-le cmd)
+            (if (instance? Byte cmd)
+              [cmd]
               (let [cmd-len (count cmd)
-                    lil-endi (comp e/unsigned-bytes-le biginteger)]
+                    lil-endi (comp e/unsigned-bytes-lil-e biginteger)]
                 (cond (<= cmd-len 75) (concat (lil-endi cmd-len) cmd)
                       (< cmd-len 0x100)
                       (concat (lil-endi 76) (lil-endi cmd-len) cmd)
