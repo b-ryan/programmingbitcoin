@@ -163,13 +163,14 @@
       (s256/p x y))))
 
 #_(->> (.pow (biginteger 999) (biginteger 3))
-       programming-bitcoin.bitcoin-curve/secret->private-key
+       programming-bitcoin.secp256k1/secret->private-key
        :point
        sec-uncompressed
-       parse)
+       parse-sec)
 
 
 (defn der
+  "Encodes a secp256k1 signature to DER format."
   [{:keys [r s] :as signature}]
   (letfn [(cons-count [bytes*] (cons (count bytes*) bytes*))
           (cons-marker [bytes*] (cons (byte 0x02) bytes*))
@@ -186,6 +187,7 @@
         cons-start)))
 
 (defn parse-der
+  "Parses a DER-formatted, secp256k1 signature."
   [bytes*]
   (let [curr (drop 3 bytes*)
         [r-len curr] [(first curr) (drop 1 curr)]
