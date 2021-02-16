@@ -4,6 +4,27 @@
 (defrecord Script [cmds])
 (defn ->script [cmds] (->Script cmds))
 
+(defmacro defops
+  [ops]
+  (let [op-names (into {}
+                       (for [[v sym] ops]
+                         [v
+                          (-> sym
+                              name
+                              (clojure.string/replace #"-" "_")
+                              (clojure.string/upper-case))]))]
+    (conj
+     (for [[v sym] ops] `(def ~sym ~v))
+     `(def op-names ~op-names)
+     'do)))
+
+(defops
+  {76 op-pushdata1
+   77 op-pushdata2
+   78 op-pushdata4})
+
+(def pushdata-bytes {op-pushdata1 1 op-pushdata2 2 op-pushdata4 4})
+
 (defn- parse-op
   [bytes*]
   ;; returns the new command and the number of bytes read
@@ -16,8 +37,8 @@
       ;; comparing to ints 1 and 75 work just fine.
       (and (>= curr-byte 1) (<= curr-byte 75)) [(take curr-byte rest-bytes)
                                                 (+ bytes-read curr-byte)]
-      (#{76 77} curr-byte)
-      (let [n (if (= curr-byte 76) 1 2)
+      (#{op-pushdata1 op-pushdata2 op-pushdata4} curr-byte)
+      (let [n (pushdata-bytes curr-byte)
             data-len (e/bytes-lil-e->pos-biginteger (take n rest-bytes))]
         [(take data-len (drop n rest-bytes)) (+ bytes-read n data-len)])
       :else [curr-byte bytes-read])))
