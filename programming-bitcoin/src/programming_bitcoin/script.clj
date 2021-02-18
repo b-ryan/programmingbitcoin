@@ -1,5 +1,6 @@
 (ns programming-bitcoin.script
-  (:require [programming-bitcoin.encodings :as e]))
+  (:require [programming-bitcoin.encodings :as e]
+            [programming-bitcoin.secp256k1 :as secp256k1]))
 
 (defrecord Script [cmds])
 (defn ->script [cmds] (->Script cmds))
@@ -23,7 +24,9 @@
           105 op-verify
           118 op-dup
           135 op-equal
-          136 op-equalverify})
+          136 op-equalverify
+          172 op-checksig
+          173 op-checksigverify})
 
 (def pushdata-bytes {op-pushdata1 1 op-pushdata2 2 op-pushdata4 4})
 
@@ -33,17 +36,14 @@
   (let [curr-byte (first bytes*)
         rest-bytes (rest bytes*)
         bytes-read 1]
-    (cond
-      ;; note that curr-byte is a byte, so integer comparison doesn't
-      ;; always work as you'd expect (since bytes are signed). But
-      ;; comparing to ints 1 and 75 work just fine.
-      (and (>= curr-byte 1) (<= curr-byte 75)) [(take curr-byte rest-bytes)
-                                                (+ bytes-read curr-byte)]
-      (#{op-pushdata1 op-pushdata2 op-pushdata4} curr-byte)
-      (let [n (pushdata-bytes curr-byte)
-            data-len (e/bytes-lil-e->pos-biginteger (take n rest-bytes))]
-        [(take data-len (drop n rest-bytes)) (+ bytes-read n data-len)])
-      :else [curr-byte bytes-read])))
+    (assert (instance? Byte curr-byte))
+    (cond (and (>= curr-byte (byte 1)) (<= curr-byte (byte 75)))
+          [(take curr-byte rest-bytes) (+ bytes-read curr-byte)]
+          (#{op-pushdata1 op-pushdata2 op-pushdata4} curr-byte)
+          (let [n (pushdata-bytes curr-byte)
+                data-len (e/bytes-lil-e->pos-biginteger (take n rest-bytes))]
+            [(take data-len (drop n rest-bytes)) (+ bytes-read n data-len)])
+          :else [curr-byte bytes-read])))
 
 (defn parse
   "Parses a byte array into a `Script`. Returns the script and the unread
@@ -100,11 +100,18 @@
 
 (defn- stack-bool [stack pred] (conj stack (if pred s-true s-false)))
 
-(defn- eval-op-dispatch [op stack z] op)
-(defmulti eval-op #'eval-op-dispatch)
+(defn- eval-op-dispatch [op stack z] {:pre [(vector? stack)]} op)
+(defmulti ^{:arglists (list ['op 'stack 'z])} eval-op
+  "Performs a Script operation for the opcode `op`.
+
+  Dispatches off the `op`, which should be a `byte`. The op will pop items from
+  `stack` and return a new stack or `::halt`, which indicates the script is
+  invalid and should stop execution."
+  #'eval-op-dispatch)
 
 (defn- op-helper
   [f n-args stack]
+  {:pre [(vector? stack)]}
   (if (< (count stack) n-args)
     ::halt
     (let [split (- (count stack) n-args)
@@ -149,3 +156,26 @@
 (defn-op-1 op-dup [stack _ v] (conj stack v v))
 (defn-op-2 op-equal [stack _ a b] (stack-bool stack (= (seq a) (seq b))))
 (defn-op-> op-equalverify [op-equal op-verify])
+
+(defn-op-2 op-checksig
+  [stack z sig-bytes pubkey-bytes]
+  (let [sig (e/parse-der sig-bytes)
+        pubkey (e/parse-sec pubkey-bytes)]
+    (stack-bool stack (secp256k1/valid-signature? pubkey z sig))))
+
+(defn-op-> op-checksigverify [op-checksig op-verify])
+
+(defn evaluate
+  [{:keys [cmds] :as script} ^BigInteger z]
+  {:pre [(vector? cmds)]}
+  (loop [stack []
+         cmds cmds]
+    (cond (= stack ::halt) false
+          (seq cmds) (let [elem-or-op (peek cmds)]
+                       (recur (if (instance? Byte elem-or-op)
+                                (eval-op elem-or-op stack z)
+                                (conj stack elem-or-op))
+                              (pop cmds)))
+          (not (seq stack)) false
+          (zero? (decode-num (peek stack))) false
+          :else true)))
