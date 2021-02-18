@@ -22,10 +22,33 @@
      script (first (s/parse (e/hex->bytes want)))]
     (is (= want (e/bytes->hex (s/serialize script))))))
 
+(deftest op-nums
+  (is (= [()] (s/eval-op s/op-0 [] nil)))
+  (is (= [[(byte -1)]] (s/eval-op s/op-1negate [] nil)))
+  (is (= [[(byte 1)]] (s/eval-op s/op-1 [] nil)))
+  (is (= [[(byte 2)]] (s/eval-op s/op-2 [] nil)))
+  (is (= [[(byte 3)]] (s/eval-op s/op-3 [] nil)))
+  (is (= [[(byte 4)]] (s/eval-op s/op-4 [] nil)))
+  (is (= [[(byte 5)]] (s/eval-op s/op-5 [] nil)))
+  (is (= [[(byte 6)]] (s/eval-op s/op-6 [] nil)))
+  (is (= [[(byte 7)]] (s/eval-op s/op-7 [] nil)))
+  (is (= [[(byte 8)]] (s/eval-op s/op-8 [] nil)))
+  (is (= [[(byte 9)]] (s/eval-op s/op-9 [] nil)))
+  (is (= [[(byte 10)]] (s/eval-op s/op-10 [] nil)))
+  (is (= [[(byte 11)]] (s/eval-op s/op-11 [] nil)))
+  (is (= [[(byte 12)]] (s/eval-op s/op-12 [] nil)))
+  (is (= [[(byte 13)]] (s/eval-op s/op-13 [] nil)))
+  (is (= [[(byte 14)]] (s/eval-op s/op-14 [] nil)))
+  (is (= [[(byte 15)]] (s/eval-op s/op-15 [] nil)))
+  (is (= [[(byte 16)]] (s/eval-op s/op-16 [] nil))))
+
+(deftest op-nop
+  (is (= [] (s/eval-op s/op-nop [] nil))))
+
 (deftest op-dup
   (is (= [(byte 1) (byte 1)] (s/eval-op s/op-dup [(byte 1)] nil))))
 
-(deftest op-equal-and-verify
+(deftest op-equalverify
   (letfn [(b [v] [(byte v)])]
     (is (= [()] (s/eval-op s/op-equal [(b 2) (b 3)] nil)))
     (is (= [(b 2)] (s/eval-op s/op-verify [(b 2) (b 3)] nil)))

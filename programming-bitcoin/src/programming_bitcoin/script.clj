@@ -18,9 +18,28 @@
           `(def op-names ~op-names)
           'do)))
 
-(def-ops {76 op-pushdata1
+(def-ops {0 op-0
+          76 op-pushdata1
           77 op-pushdata2
           78 op-pushdata4
+          79 op-1negate
+          81 op-1
+          82 op-2
+          83 op-3
+          84 op-4
+          85 op-5
+          86 op-6
+          87 op-7
+          88 op-8
+          89 op-9
+          90 op-10
+          91 op-11
+          92 op-12
+          93 op-13
+          94 op-14
+          95 op-15
+          96 op-16
+          97 op-nop
           105 op-verify
           118 op-dup
           135 op-equal
@@ -119,6 +138,12 @@
           new-stack (subvec stack 0 split)]
       (apply f new-stack args))))
 
+(defmacro defn-op-0
+  [op [stack-sym z-sym] & body]
+  `(defmethod eval-op ~op
+     [_# stack# ~z-sym]
+     (op-helper (fn [~stack-sym] ~@body) 0 stack#)))
+
 (defmacro defn-op-1
   [op [stack-sym z-sym arg1-sym] & body]
   `(defmethod eval-op ~op
@@ -152,6 +177,25 @@
 ;                           op definitions                            ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn-op-0 op-0 [stack _] (conj stack (encode-num 0)))
+(defn-op-0 op-1negate [stack _] (conj stack (encode-num -1)))
+(defn-op-0 op-1 [stack _] (conj stack (encode-num 1)))
+(defn-op-0 op-2 [stack _] (conj stack (encode-num 2)))
+(defn-op-0 op-3 [stack _] (conj stack (encode-num 3)))
+(defn-op-0 op-4 [stack _] (conj stack (encode-num 4)))
+(defn-op-0 op-5 [stack _] (conj stack (encode-num 5)))
+(defn-op-0 op-6 [stack _] (conj stack (encode-num 6)))
+(defn-op-0 op-7 [stack _] (conj stack (encode-num 7)))
+(defn-op-0 op-8 [stack _] (conj stack (encode-num 8)))
+(defn-op-0 op-9 [stack _] (conj stack (encode-num 9)))
+(defn-op-0 op-10 [stack _] (conj stack (encode-num 10)))
+(defn-op-0 op-11 [stack _] (conj stack (encode-num 11)))
+(defn-op-0 op-12 [stack _] (conj stack (encode-num 12)))
+(defn-op-0 op-13 [stack _] (conj stack (encode-num 13)))
+(defn-op-0 op-14 [stack _] (conj stack (encode-num 14)))
+(defn-op-0 op-15 [stack _] (conj stack (encode-num 15)))
+(defn-op-0 op-16 [stack _] (conj stack (encode-num 16)))
+(defn-op-0 op-nop [stack _] stack)
 (defn-op-1 op-verify [stack _ v] (if (= (decode-num v) 0) ::halt stack))
 (defn-op-1 op-dup [stack _ v] (conj stack v v))
 (defn-op-2 op-equal [stack _ a b] (stack-bool stack (= (seq a) (seq b))))
