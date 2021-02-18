@@ -188,8 +188,10 @@
 
 (defn parse-der
   "Parses a DER-formatted, secp256k1 signature."
+  ;; TODO confirm sig starts with 0x30
   [bytes*]
-  (let [curr (drop 3 bytes*)
+  (let [;; drop the 0x30 starting byte, length of whole sig, 0x02 marker
+        curr (drop 3 bytes*)
         [r-len curr] [(first curr) (drop 1 curr)]
         [r-bytes curr] [(take r-len curr) (drop (inc r-len) curr)]
         [s-len curr] [(first curr) (drop 1 curr)]

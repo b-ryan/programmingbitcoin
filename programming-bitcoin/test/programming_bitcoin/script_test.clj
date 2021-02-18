@@ -42,8 +42,7 @@
   (is (= [[(byte 15)]] (s/eval-op s/op-15 [] nil)))
   (is (= [[(byte 16)]] (s/eval-op s/op-16 [] nil))))
 
-(deftest op-nop
-  (is (= [] (s/eval-op s/op-nop [] nil))))
+(deftest op-nop (is (= [] (s/eval-op s/op-nop [] nil))))
 
 (deftest op-dup
   (is (= [(byte 1) (byte 1)] (s/eval-op s/op-dup [(byte 1)] nil))))
@@ -55,17 +54,58 @@
     (is (= [(b 8)] (s/eval-op s/op-equalverify [(b 8) (b 2) (b 2)] nil)))
     (is (= ::s/halt (s/eval-op s/op-equalverify [(b 2) (b 3)] nil)))))
 
-(deftest checksig
+(deftest p2pk
   (let
     [z (biginteger
         0x7c076ff316692a3d7eb3c3bb0f8b1488cf72e1afcd929e29307032997a838a3d)
-     sec
+     pubkey-sec
      (e/hex->bytes
       "04887387e452b8eacc4acfde10d9aaf7f6d9a0f975aabb10d006e4da568744d06c61de6d95231cd89026e286df3b6ae4a894a3378e393e93a0f45b666329a0ae34")
-     sig
+     sig-der
      (e/hex->bytes
-      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab601")
-     script-pukey [(unchecked-byte 0xac) sec]
-     script-sig [sig]
-     combined-script (s/->script (into script-pukey script-sig))]
-    (is (s/evaluate combined-script z))))
+      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab6")
+     script (s/->script [s/op-checksig pubkey-sec sig-der])]
+    (is (s/evaluate script z))))
+
+(deftest p2pk-fail
+  (let
+    [z (biginteger
+        0x7c076ff316692a3d7eb3c3bb0f8b1488cf72e1afcd929e29307032997a838a3d)
+     pubkey-sec
+     (e/hex->bytes
+      "04887387e452b8eacc4acfde10d9aaf7f6d9a0f975aabb10d006e4da568744d06c61de6d95231cd89026e286df3b6ae4a894a3378e393e93a0f45b666329a0ae34")
+     sig-der
+     (e/hex->bytes
+      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab7")
+     script (s/->script [s/op-checksig pubkey-sec sig-der])]
+    (is (not (s/evaluate script z)))))
+
+(deftest p2pkh
+  (let
+    [z (biginteger
+        0x7c076ff316692a3d7eb3c3bb0f8b1488cf72e1afcd929e29307032997a838a3d)
+     pubkey-sec
+     (e/hex->bytes
+      "04887387e452b8eacc4acfde10d9aaf7f6d9a0f975aabb10d006e4da568744d06c61de6d95231cd89026e286df3b6ae4a894a3378e393e93a0f45b666329a0ae34")
+     pubkey-hash (e/hex->bytes "fb6c931433c83e8bb5a4c6588c7fc24c08dac6e3")
+     sig-der
+     (e/hex->bytes
+      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab6")
+     script (s/->script [s/op-checksig s/op-equalverify pubkey-hash s/op-hash160
+                         s/op-dup pubkey-sec sig-der])]
+    (is (s/evaluate script z))))
+
+(deftest p2pkh-fail
+  (let
+    [z (biginteger
+        0x7c076ff316692a3d7eb3c3bb0f8b1488cf72e1afcd929e29307032997a838a3d)
+     pubkey-sec
+     (e/hex->bytes
+      "04887387e452b8eacc4acfde10d9aaf7f6d9a0f975aabb10d006e4da568744d06c61de6d95231cd89026e286df3b6ae4a894a3378e393e93a0f45b666329a0ae34")
+     pubkey-hash (e/hex->bytes "fb6c931433c83e8bb5a4c6588c7fc24c08dac6e4")
+     sig-der
+     (e/hex->bytes
+      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab6")
+     script (s/->script [s/op-checksig s/op-equalverify pubkey-hash s/op-hash160
+                         s/op-dup pubkey-sec sig-der])]
+    (is (not (s/evaluate script z)))))

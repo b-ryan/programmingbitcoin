@@ -44,6 +44,8 @@
           118 op-dup
           135 op-equal
           136 op-equalverify
+          169 op-hash160
+          170 op-hash256
           172 op-checksig
           173 op-checksigverify})
 
@@ -136,7 +138,7 @@
     (let [split (- (count stack) n-args)
           args (subvec stack split)
           new-stack (subvec stack 0 split)]
-      (apply f new-stack args))))
+      (apply f new-stack (reverse args)))))
 
 (defmacro defn-op-0
   [op [stack-sym z-sym] & body]
@@ -201,11 +203,21 @@
 (defn-op-2 op-equal [stack _ a b] (stack-bool stack (= (seq a) (seq b))))
 (defn-op-> op-equalverify [op-equal op-verify])
 
+(defn-op-1 op-hash160 [stack _ v] (conj stack (e/hash160 v)))
+(defn-op-1 op-hash256 [stack _ v] (conj stack (e/hash256 v)))
+
 (defn-op-2 op-checksig
-  [stack z sig-bytes pubkey-bytes]
+  [stack z pubkey-bytes sig-bytes]
   (let [sig (e/parse-der sig-bytes)
         pubkey (e/parse-sec pubkey-bytes)]
+    (def S sig)
+    (def P pubkey)
+    (def Z z)
     (stack-bool stack (secp256k1/valid-signature? pubkey z sig))))
+
+(secp256k1/valid-signature? P Z S)
+(let [x (e/bytes->hex (e/der S))]
+  (subs x (- (count x) 4)))
 
 (defn-op-> op-checksigverify [op-checksig op-verify])
 
