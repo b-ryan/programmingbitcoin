@@ -2,6 +2,6 @@
  :old? false
  :map {:comma? false}
  :fn-map {"defonce" :arg1-body
-          "defpop1" :arg1-body
-          "defpop2" :arg1-body
+          "defn-op-1" :arg1-body
+          "defn-op-2" :arg1-body
           "testing" :arg1}}

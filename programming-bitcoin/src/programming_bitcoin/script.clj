@@ -4,24 +4,26 @@
 (defrecord Script [cmds])
 (defn ->script [cmds] (->Script cmds))
 
-(defmacro defops
+(defmacro def-ops
   [ops]
   (let [op-names (into {}
                        (for [[v sym] ops]
-                         [v
+                         [(unchecked-byte v)
                           (-> sym
                               name
                               (clojure.string/replace #"-" "_")
                               (clojure.string/upper-case))]))]
-    (conj
-     (for [[v sym] ops] `(def ~sym ~v))
-     `(def op-names ~op-names)
-     'do)))
+    (conj (for [[v sym] ops] `(def ~sym (unchecked-byte ~v)))
+          `(def op-names ~op-names)
+          'do)))
 
-(defops
-  {76 op-pushdata1
-   77 op-pushdata2
-   78 op-pushdata4})
+(def-ops {76 op-pushdata1
+          77 op-pushdata2
+          78 op-pushdata4
+          105 op-verify
+          118 op-dup
+          135 op-equal
+          136 op-equalverify})
 
 (def pushdata-bytes {op-pushdata1 1 op-pushdata2 2 op-pushdata4 4})
 
@@ -81,3 +83,69 @@
          []
          cmds)]
     (concat (e/encode-varint (biginteger (count result))) result)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;                             op helpers                              ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn- encode-num [n] (if (zero? n) () (reverse (.toByteArray (biginteger n)))))
+
+(defn- decode-num
+  [bytes*]
+  (if (seq bytes*) (BigInteger. (byte-array (reverse bytes*))) (biginteger 0)))
+
+(def ^:private s-false (encode-num 0))
+(def ^:private s-true (encode-num 1))
+
+(defn- stack-bool [stack pred] (conj stack (if pred s-true s-false)))
+
+(defn- eval-op-dispatch [op stack z] op)
+(defmulti eval-op #'eval-op-dispatch)
+
+(defn- op-helper
+  [f n-args stack]
+  (if (< (count stack) n-args)
+    ::halt
+    (let [split (- (count stack) n-args)
+          args (subvec stack split)
+          new-stack (subvec stack 0 split)]
+      (apply f new-stack args))))
+
+(defmacro defn-op-1
+  [op [stack-sym z-sym arg1-sym] & body]
+  `(defmethod eval-op ~op
+     [_# stack# ~z-sym]
+     (op-helper (fn [~stack-sym ~arg1-sym] ~@body) 1 stack#)))
+
+(defmacro defn-op-2
+  [op [stack-sym z-sym arg1-sym arg2-sym] & body]
+  `(defmethod eval-op ~op
+     [_# stack# ~z-sym]
+     (op-helper (fn [~stack-sym ~arg1-sym ~arg2-sym] ~@body) 2 stack#)))
+
+(defmacro defn-op->
+  [op [& op-fns]]
+  {:pre [(seq op-fns)]}
+  (let [z-sym (gensym "z__")
+        new-stack-sym (gensym "new-stack__")
+        steps (map (fn [op]
+                     `(if (= ~new-stack-sym ::halt)
+                        ::halt
+                        (eval-op ~op ~new-stack-sym ~z-sym)))
+                   (rest op-fns))]
+    `(defmethod eval-op ~op
+       [_# stack# ~z-sym]
+       (let [~new-stack-sym (eval-op ~(first op-fns) stack# ~z-sym)
+             ~@(interleave (repeat new-stack-sym) steps)]
+         ~new-stack-sym))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;                           op definitions                            ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn-op-1 op-verify [stack _ v] (if (= (decode-num v) 0) ::halt stack))
+(defn-op-1 op-dup [stack _ v] (conj stack v v))
+(defn-op-2 op-equal [stack _ a b] (stack-bool stack (= (seq a) (seq b))))
+(defn-op-> op-equalverify [op-equal op-verify])
