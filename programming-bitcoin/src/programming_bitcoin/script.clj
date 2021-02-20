@@ -44,6 +44,9 @@
           118 op-dup
           135 op-equal
           136 op-equalverify
+          147 op-add
+          148 op-sub
+          149 op-mul
           169 op-hash160
           170 op-hash256
           172 op-checksig
@@ -53,6 +56,7 @@
 
 (defn- parse-op
   [bytes*]
+  {:pre [(seq bytes*)]}
   ;; returns the new command and the number of bytes read
   (let [curr-byte (first bytes*)
         rest-bytes (rest bytes*)
@@ -70,18 +74,18 @@
   "Parses a byte array into a `Script`. Returns the script and the unread
   bytes*."
   [bytes*]
-  (let [[len rest*] (e/read-varint bytes*)]
+  (let [[len bytes*] (e/read-varint bytes*)]
     (loop [cmds []
            total-bytes-read 0
-           rest* rest*]
+           bytes* bytes*]
       (cond (> total-bytes-read len)
             (throw (ex-info "Parsing script failed"
                             {:len len :total-bytes-read total-bytes-read}))
-            (= total-bytes-read len) [(->script cmds) rest*]
-            :else (let [[new-cmd bytes-read] (parse-op rest*)]
+            (= total-bytes-read len) [(->script cmds) bytes*]
+            :else (let [[new-cmd bytes-read] (parse-op bytes*)]
                     (recur (conj cmds new-cmd)
                            (+ total-bytes-read bytes-read)
-                           (drop bytes-read rest*)))))))
+                           (drop bytes-read bytes*)))))))
 
 (defn serialize
   "Encodes a `Script` to a byte sequence."
@@ -174,34 +178,50 @@
              ~@(interleave (repeat new-stack-sym) steps)]
          ~new-stack-sym))))
 
+(defmacro number-op
+  [n]
+  (let [sym (symbol (str "op-" (Math/abs n) (when (< 0 n) "negate")))]
+    `(defn-op-0 ~sym [stack# _#] (conj stack# (encode-num ~n)))))
+
+(defmacro arithmetic-op
+  [op f]
+  `(defn-op-2 ~op
+     [stack# _# a# b#]
+     (conj stack# (encode-num (~f (decode-num a#) (decode-num b#))))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;                           op definitions                            ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn-op-0 op-0 [stack _] (conj stack (encode-num 0)))
-(defn-op-0 op-1negate [stack _] (conj stack (encode-num -1)))
-(defn-op-0 op-1 [stack _] (conj stack (encode-num 1)))
-(defn-op-0 op-2 [stack _] (conj stack (encode-num 2)))
-(defn-op-0 op-3 [stack _] (conj stack (encode-num 3)))
-(defn-op-0 op-4 [stack _] (conj stack (encode-num 4)))
-(defn-op-0 op-5 [stack _] (conj stack (encode-num 5)))
-(defn-op-0 op-6 [stack _] (conj stack (encode-num 6)))
-(defn-op-0 op-7 [stack _] (conj stack (encode-num 7)))
-(defn-op-0 op-8 [stack _] (conj stack (encode-num 8)))
-(defn-op-0 op-9 [stack _] (conj stack (encode-num 9)))
-(defn-op-0 op-10 [stack _] (conj stack (encode-num 10)))
-(defn-op-0 op-11 [stack _] (conj stack (encode-num 11)))
-(defn-op-0 op-12 [stack _] (conj stack (encode-num 12)))
-(defn-op-0 op-13 [stack _] (conj stack (encode-num 13)))
-(defn-op-0 op-14 [stack _] (conj stack (encode-num 14)))
-(defn-op-0 op-15 [stack _] (conj stack (encode-num 15)))
-(defn-op-0 op-16 [stack _] (conj stack (encode-num 16)))
+(number-op -1)
+(number-op 0)
+(number-op 1)
+(number-op 2)
+(number-op 3)
+(number-op 4)
+(number-op 5)
+(number-op 6)
+(number-op 7)
+(number-op 8)
+(number-op 9)
+(number-op 10)
+(number-op 11)
+(number-op 12)
+(number-op 13)
+(number-op 14)
+(number-op 15)
+(number-op 16)
+
 (defn-op-0 op-nop [stack _] stack)
 (defn-op-1 op-verify [stack _ v] (if (= (decode-num v) 0) ::halt stack))
 (defn-op-1 op-dup [stack _ v] (conj stack v v))
 (defn-op-2 op-equal [stack _ a b] (stack-bool stack (= (seq a) (seq b))))
 (defn-op-> op-equalverify [op-equal op-verify])
+
+(arithmetic-op op-add .add)
+(arithmetic-op op-sub .subtract)
+(arithmetic-op op-mul .multiply)
 
 (defn-op-1 op-hash160 [stack _ v] (conj stack (e/hash160 v)))
 (defn-op-1 op-hash256 [stack _ v] (conj stack (e/hash256 v)))
@@ -210,14 +230,7 @@
   [stack z pubkey-bytes sig-bytes]
   (let [sig (e/parse-der sig-bytes)
         pubkey (e/parse-sec pubkey-bytes)]
-    (def S sig)
-    (def P pubkey)
-    (def Z z)
     (stack-bool stack (secp256k1/valid-signature? pubkey z sig))))
-
-(secp256k1/valid-signature? P Z S)
-(let [x (e/bytes->hex (e/der S))]
-  (subs x (- (count x) 4)))
 
 (defn-op-> op-checksigverify [op-checksig op-verify])
 
@@ -227,11 +240,30 @@
   (loop [stack []
          cmds cmds]
     (cond (= stack ::halt) false
-          (seq cmds) (let [elem-or-op (peek cmds)]
-                       (recur (if (instance? Byte elem-or-op)
-                                (eval-op elem-or-op stack z)
-                                (conj stack elem-or-op))
+          (seq cmds) (let [item (peek cmds)]
+                       (recur (if (instance? Byte item)
+                                (eval-op item stack z)
+                                (conj stack item))
                               (pop cmds)))
           (not (seq stack)) false
           (zero? (decode-num (peek stack))) false
           :else true)))
+
+(defn pprint
+  [{:keys [cmds] :as script}]
+  {:pre [(vector? cmds)]}
+  (loop [cmds cmds]
+    (when-let [item (peek cmds)]
+      (if (instance? Byte item)
+        (println (op-names item))
+        (println (str "0x" (e/bytes->hex item))))
+      (recur (pop cmds)))))
+
+(comment (let [script-pubkey [(unchecked-byte 0x87) (unchecked-byte 0x56)
+                              (unchecked-byte 0x93) (unchecked-byte 0x95)
+                              (unchecked-byte 0x76) (unchecked-byte 0x76)]
+               script-sig [(encode-num 2)]]
+           (pprint {:cmds (into script-pubkey script-sig)})
+           (evaluate {:cmds (into script-pubkey script-sig)} nil)))
+
+(comment (prn *e))
