@@ -66,21 +66,6 @@
       reverse
       bytes->pos-biginteger))
 
-(def ^:private b58-alphabet
-  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
-
-(defn base58
-  "Converts collection of bytes `bytes*` to a base 58 string."
-  [bytes*]
-  (str
-   (clojure.string/join (repeat (count (take-while (partial = 0) bytes*)) "1"))
-   (loop [num* (bytes->pos-biginteger bytes*)
-          result ""]
-     (if (> num* 0)
-       (let [[next-num mod-val] (.divideAndRemainder num* (biginteger 58))]
-         (recur next-num (str (str (get b58-alphabet mod-val)) result)))
-       result))))
-
 (defn pad
   "Left pads collection of bytes `bytes*` with byte 0 so `bytes*` has size `n`."
   [n bytes*]
@@ -96,8 +81,9 @@
     `:pad` will cause the resulting byte vector to be padded with zeroes so
     that the length of the vector is `:pad`.
 
-    `signed?` if this is true, `x` must be positive and the resulting byte
-    vector will be unsigned. Otherwise, twos-complement bytes are returned.
+    `signed?` if this is true, twos-complement bytes are returned. Otherwise
+    `x` must be positive and the resulting byte vector will be unsigned.
+    Default is `false`.
 
     `endian` must be `:big` or `:little` (default is `:big`). Defines the
     endianness of the result."
@@ -148,6 +134,31 @@
   [^BigInteger x]
   {:pre [(>= x (biginteger 0))]}
   (unsigned-bytes x 32))
+
+(def ^:private b58-alphabet
+  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+(def ^:private b58-ch->v
+  (into {} (map-indexed (fn [idx ch] [ch idx]) b58-alphabet)))
+
+(defn bytes->base58
+  "Converts collection of bytes `bytes*` to a base 58 string."
+  [bytes*]
+  (str
+   (clojure.string/join (repeat (count (take-while (partial = 0) bytes*)) "1"))
+   (loop [num* (bytes->pos-biginteger bytes*)
+          result ""]
+     (if (> num* 0)
+       (let [[next-num mod-val] (.divideAndRemainder num* (biginteger 58))]
+         (recur next-num (str (get b58-alphabet mod-val) result)))
+       result))))
+
+(defn base58->bytes
+  [b58]
+  (BI->bytes (reduce (fn [accum ch]
+                       (.add (.multiply accum (biginteger 58))
+                             (biginteger (b58-ch->v ch))))
+                     (biginteger 0)
+                     b58)))
 
 (defn sec-uncompressed
   "Encodes a `point` with uncompressed SEC format, where `:x` and `:y` of the
@@ -240,7 +251,7 @@
 (defn base58-with-checksum
   "Adds 4 bytes of the hash256 checksum and then encodes using base 58."
   [bytes*]
-  (base58 (concat bytes* (take 4 (hash256 bytes*)))))
+  (bytes->base58 (concat bytes* (take 4 (hash256 bytes*)))))
 
 (defn point->hash160
   "Does hash160 on an SEC formatted point (compressed or uncompressed)."

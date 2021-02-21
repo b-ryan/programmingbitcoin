@@ -61,7 +61,13 @@
           "EQJsjkd6JaGwxrjEhfeqPenqHwrBmPQZjJGNSCHBkcF7"])]
     (doseq [[b16 b58] cases]
       (testing (str "b16->54 for " b16)
-       (is (= b58 (e/base58 (e/hex->bytes b16))))))))
+       (is (= b58 (e/bytes->base58 (e/hex->bytes b16))))
+       (is (= b16
+              (-> b16
+                  e/hex->bytes
+                  e/bytes->base58
+                  e/base58->bytes
+                  e/bytes->hex)))))))
 
 (def sha256-test-vectors
   #^{:doc "test vectors from the NESSIE project (http://is.gd/jdM99e)"}
@@ -123,7 +129,7 @@
                 "2iLQ7bPqVzZpKMsP1gsdhvDcDsks"])]
     (doseq [[s b58] cases]
       (testing (str "hash160 for " s)
-       (is (= b58 (e/base58 (e/hash160 (.getBytes s)))))))))
+       (is (= b58 (e/bytes->base58 (e/hash160 (.getBytes s)))))))))
 
 (defn- ** [x y] (.pow (biginteger x) (biginteger y)))
 
