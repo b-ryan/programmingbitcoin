@@ -180,7 +180,7 @@
 
 (defmacro number-op
   [n]
-  (let [sym (symbol (str "op-" (Math/abs n) (when (< 0 n) "negate")))]
+  (let [sym (symbol (str "op-" (Math/abs n) (when (< n 0) "negate")))]
     `(defn-op-0 ~sym [stack# _#] (conj stack# (encode-num ~n)))))
 
 (defmacro arithmetic-op

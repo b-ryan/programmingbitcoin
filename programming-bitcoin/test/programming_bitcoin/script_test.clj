@@ -63,7 +63,7 @@
       "04887387e452b8eacc4acfde10d9aaf7f6d9a0f975aabb10d006e4da568744d06c61de6d95231cd89026e286df3b6ae4a894a3378e393e93a0f45b666329a0ae34")
      sig-der
      (e/hex->bytes
-      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab6")
+      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab601")
      script (s/->script [s/op-checksig pubkey-sec sig-der])]
     (is (s/evaluate script z))))
 
@@ -76,7 +76,7 @@
       "04887387e452b8eacc4acfde10d9aaf7f6d9a0f975aabb10d006e4da568744d06c61de6d95231cd89026e286df3b6ae4a894a3378e393e93a0f45b666329a0ae34")
      sig-der
      (e/hex->bytes
-      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab7")
+      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab701")
      script (s/->script [s/op-checksig pubkey-sec sig-der])]
     (is (not (s/evaluate script z)))))
 
@@ -90,7 +90,7 @@
      pubkey-hash (e/hex->bytes "fb6c931433c83e8bb5a4c6588c7fc24c08dac6e3")
      sig-der
      (e/hex->bytes
-      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab6")
+      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab601")
      script (s/->script [s/op-checksig s/op-equalverify pubkey-hash s/op-hash160
                          s/op-dup pubkey-sec sig-der])]
     (is (s/evaluate script z))))
@@ -105,7 +105,7 @@
      pubkey-hash (e/hex->bytes "fb6c931433c83e8bb5a4c6588c7fc24c08dac6e4")
      sig-der
      (e/hex->bytes
-      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab6")
+      "3045022000eff69ef2b1bd93a66ed5219add4fb51e11a840f404876325a1e8ffe0529a2c022100c7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab601")
      script (s/->script [s/op-checksig s/op-equalverify pubkey-hash s/op-hash160
                          s/op-dup pubkey-sec sig-der])]
     (is (not (s/evaluate script z)))))

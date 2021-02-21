@@ -86,7 +86,32 @@
   [n bytes*]
   (concat (repeat (- n (count bytes*)) (byte 0)) bytes*))
 
-(defn unsigned-bytes
+(defn BI->bytes
+  "Converts a BigInteger to a vector of bytes.
+
+  The return value is guaranteed to be a vector.
+
+  Available options:
+
+    `:pad` will cause the resulting byte vector to be padded with zeroes so
+    that the length of the vector is `:pad`.
+
+    `signed?` if this is true, `x` must be positive and the resulting byte
+    vector will be unsigned. Otherwise, twos-complement bytes are returned.
+
+    `endian` must be `:big` or `:little` (default is `:big`). Defines the
+    endianness of the result."
+  ([^BigInteger x] (BI->bytes x nil))
+  ([^BigInteger x {pad* :pad :keys [signed? endian]}]
+   {:pre [(or signed? (>= x (biginteger 0)))
+          (contains? #{nil :big :little} endian)]
+    :post [(vector? %)]}
+   (let [b (.toByteArray x)
+         b (if signed? b (remove-sign b))
+         b (if pad* (pad pad* b) b)]
+     (into [] (if (= :little endian) (reverse b) b)))))
+
+(defn ^{:deprecated true} unsigned-bytes
   "Returns a big-endian byte sequence for BigInteger `x`, not including a sign
   bit.
 
@@ -99,7 +124,7 @@
         remove-sign
         (pad pad*))))
 
-(defn unsigned-bytes-lil-e
+(defn ^{:deprecated true} unsigned-bytes-lil-e
   "Returns a little-endian byte sequence for BigInteger `x`, not including a
   sign bit.
 
@@ -189,6 +214,9 @@
 (defn parse-der
   "Parses a DER-formatted, secp256k1 signature."
   ;; TODO confirm sig starts with 0x30
+  ;; TODO I have seen the DER sig ending with 0x01 byte to indicate end of the
+  ;; sig
+  ;; https://raghavsood.com/blog/2018/06/10/bitcoin-signature-types-sighash
   [bytes*]
   (let [;; drop the 0x30 starting byte, length of whole sig, 0x02 marker
         curr (drop 3 bytes*)

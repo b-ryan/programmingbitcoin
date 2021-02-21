@@ -14,6 +14,12 @@
      (def ~sym result#)
      result#))
 
+(defmacro capture*
+  [expr sym]
+  `(let [result# ~expr]
+     (def ~sym result#)
+     result#))
+
 ; (require '[clojure.spec.test.alpha :as stest])
 ; (stest/instrument (stest/instrumentable-syms))
 ; (stest/instrument 'programming-bitcoin.finite-fields/pow)

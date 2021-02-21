@@ -63,8 +63,8 @@
 (defn ->sig [r s] (->Signature (biginteger r) (biginteger s)))
 
 (defn valid-signature?
-  "Returns boolean indicating whether signature `signature` for input data `z`
-  is a valid signature for the point `point`."
+  "Returns boolean indicating whether signature `signature` for signature hash
+  `z` is a valid signature for the public key `point`."
   [point ^BigInteger z {:keys [^BigInteger r ^BigInteger s] :as signature}]
   (let [s-inv (.modPow s (.subtract N (biginteger 2)) N)
         u (.mod (.multiply z s-inv) N)
