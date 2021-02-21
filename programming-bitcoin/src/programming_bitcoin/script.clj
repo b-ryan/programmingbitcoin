@@ -3,7 +3,8 @@
             [programming-bitcoin.secp256k1 :as secp256k1]))
 
 (defrecord Script [cmds])
-(defn ->script [cmds] (->Script cmds))
+(defn ->script [cmds] {:pre [(vector? cmds)]} (->Script cmds))
+(defn combine [{cmds-a :cmds} {cmds-b :cmds}] (->script (into cmds-a cmds-b)))
 
 (defmacro def-ops
   [ops]
@@ -75,13 +76,16 @@
   bytes*."
   [bytes*]
   (let [[len bytes*] (e/read-varint bytes*)]
-    (loop [cmds []
+    (loop [cmds (list)
            total-bytes-read 0
            bytes* bytes*]
       (cond (> total-bytes-read len)
             (throw (ex-info "Parsing script failed"
                             {:len len :total-bytes-read total-bytes-read}))
-            (= total-bytes-read len) [(->script cmds) bytes*]
+            (= total-bytes-read len) [(->script (vec cmds)) bytes*]
+            (empty? bytes*)
+            (throw (ex-info "Parsing script failed"
+                            {:len len :total-bytes-read total-bytes-read}))
             :else (let [[new-cmd bytes-read] (parse-op bytes*)]
                     (recur (conj cmds new-cmd)
                            (+ total-bytes-read bytes-read)
@@ -106,7 +110,7 @@
                       (concat (lil-endi 77) (lil-endi cmd-len) cmd)
                       :else (throw (ex-info "cmd too long" {:cmd cmd})))))))
          []
-         cmds)]
+         (reverse cmds))]
     (concat (e/encode-varint (biginteger (count result))) result)))
 
 
@@ -252,11 +256,12 @@
 (defn pprint
   [{:keys [cmds] :as script}]
   {:pre [(vector? cmds)]}
+  (println "script=>")
   (loop [cmds cmds]
     (when-let [item (peek cmds)]
       (if (instance? Byte item)
-        (println (op-names item))
-        (println (str "0x" (e/bytes->hex item))))
+        (println (str "  " (op-names item)))
+        (println (str "  0x" (e/bytes->hex item))))
       (recur (pop cmds)))))
 
 (comment (let [script-pubkey [(unchecked-byte 0x87) (unchecked-byte 0x56)

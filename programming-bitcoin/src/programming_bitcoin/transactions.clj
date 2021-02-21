@@ -159,15 +159,26 @@
   [{:keys [tx-ins] :as tx} tx-fetcher]
   (let [z (sighash tx tx-fetcher (byte 1))]
     (and (>= (fee tx tx-fetcher) 0)
-         (every? #(script/evaluate (:script-sig %) z) tx-ins))))
+         (every? #(script/evaluate (script/combine
+                                    (tx-in-script-pubkey % tx-fetcher)
+                                    (:script-sig %))
+                                   z)
+                 tx-ins))))
 
 (comment (def h (->CachedHttpFetcher (atom {}) {:testnet? true})))
 (comment (def p (->CachedHttpFetcher (atom {}) {:testnet? false})))
 
 (comment
- (-> (fetch h
-            "74ebcce0a52df5844b3f1f91f33e5b4845c3da5a9fa1db4dfa24e7a5f3514fdc")
-     (fee h)))
+ (let [tx (fetch
+           h
+           "74ebcce0a52df5844b3f1f91f33e5b4845c3da5a9fa1db4dfa24e7a5f3514fdc")
+       ;; one input
+       in (first (:tx-ins tx))
+       ;; two outputs, the second is the one to me
+       out (-> tx
+               (:tx-outs)
+               (second))]
+   (script/pprint (:script-pubkey out))))
 
 (comment
  (-> (fetch h
