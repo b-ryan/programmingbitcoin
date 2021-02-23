@@ -144,6 +144,10 @@
          (e/point->address (:point (s256/secret->private-key 0x12345deadbeef))
                            {:compressed? true :testnet? false}))))
 
+(deftest address-hash
+  (is (= "658426fc6969ac998a82994b3d7f137c37d90886"
+         (e/bytes->hex (e/address->hash
+                        "mpmirXkDoTgbEbYZBfKfCdsTJ5f1QugyTd")))))
 
 (deftest wif
   (is (= "cMahea7zqjxrtgAbB7LSGbcQUr1uX1ojuat9jZodMN8rFTv2sfUK"

@@ -8,13 +8,14 @@
 
 (defmacro def-ops
   [ops]
-  (let [op-names (into {}
-                       (for [[v sym] ops]
-                         [(unchecked-byte v)
-                          (-> sym
-                              name
-                              (clojure.string/replace #"-" "_")
-                              (clojure.string/upper-case))]))]
+  (let [op-names (comp (into {}
+                             (for [[v sym] ops]
+                               [(unchecked-byte v)
+                                (-> sym
+                                    name
+                                    (clojure.string/replace #"-" "_")
+                                    (clojure.string/upper-case))]))
+                       unchecked-byte)]
     (conj (for [[v sym] ops] `(def ~sym (unchecked-byte ~v)))
           `(def op-names ~op-names)
           'do)))
@@ -79,17 +80,18 @@
     (loop [cmds (list)
            total-bytes-read 0
            bytes* bytes*]
-      (cond (> total-bytes-read len)
-            (throw (ex-info "Parsing script failed"
-                            {:len len :total-bytes-read total-bytes-read}))
-            (= total-bytes-read len) [(->script (vec cmds)) bytes*]
-            (empty? bytes*)
-            (throw (ex-info "Parsing script failed"
-                            {:len len :total-bytes-read total-bytes-read}))
-            :else (let [[new-cmd bytes-read] (parse-op bytes*)]
-                    (recur (conj cmds new-cmd)
-                           (+ total-bytes-read bytes-read)
-                           (drop bytes-read bytes*)))))))
+      (cond
+        (> total-bytes-read len)
+        (throw (ex-info "Parsing script failed"
+                        {:len len :total-bytes-read total-bytes-read}))
+        (= total-bytes-read len) [(->script (vec cmds)) bytes*]
+        (empty? bytes*) (throw (ex-info "Parsing script failed"
+                                        {:len len
+                                         :total-bytes-read total-bytes-read}))
+        :else (let [[new-cmd bytes-read] (parse-op bytes*)]
+                (recur (conj cmds new-cmd)
+                       (+ total-bytes-read bytes-read)
+                       (drop bytes-read bytes*)))))))
 
 (defn serialize
   "Encodes a `Script` to a byte sequence."
@@ -272,3 +274,9 @@
            (evaluate {:cmds (into script-pubkey script-sig)} nil)))
 
 (comment (prn *e))
+
+(defn p2pkh
+  "Creates a p2pkh (pay-to-public-key-hash) script for a public key point that
+  has already been hashed with hash160."
+  [h160]
+  (->script [op-checksig op-equalverify h160 op-hash160 op-dup]))

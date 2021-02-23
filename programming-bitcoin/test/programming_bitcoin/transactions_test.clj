@@ -75,7 +75,7 @@
      expected-sighash
      "27e0c5994dec7824e56dec6b2fcb342eb7cdb0d0957c2fce9882f715e85d81a6"]
     (is (= (e/bytes->pos-biginteger (e/hex->bytes expected-sighash))
-           (tx/sighash tx fetcher (byte 1))))))
+           (tx/sighash tx fetcher 0)))))
 
 (deftest verify
   (let

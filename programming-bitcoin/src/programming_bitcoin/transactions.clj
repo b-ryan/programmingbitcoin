@@ -2,18 +2,37 @@
   (:require [clj-http.client :as http]
             [programming-bitcoin.encodings :as e]
             [programming-bitcoin.primitives :refer
-             [biginteger-add biginteger-subtract]]
+             [biginteger-add biginteger-subtract biginteger?]]
             [programming-bitcoin.script :as script]))
 
 (defrecord TxIn [prev-tx prev-index script-sig sequence*])
 (defrecord TxOut [amount script-pubkey])
 (defrecord Transaction [version tx-ins tx-outs locktime])
 
+(def empty-script (script/->script []))
+(defn- or-nil? [f x] (or (nil? x) (f x)))
+
+(defn ->tx-in
+  [prev-tx prev-index script-sig sequence*]
+  {:pre [(string? prev-tx) (biginteger? prev-index)
+         (or-nil? biginteger? sequence*)]}
+  (->TxIn prev-tx
+          prev-index
+          (or script-sig empty-script)
+          (or sequence* (biginteger 0xffffffff))))
+
+(defn ->tx-out
+  [amount script-pubkey]
+  {:pre [(integer? amount)]}
+  (->TxOut amount (or script-pubkey empty-script)))
+
 (defn ->tx
+  "version: `BigInteger`
+  tx-ins: coll of `TxIn`
+  tx-outs: coll of `TxOut`
+  locktime: `BigInteger`"
   [version tx-ins tx-outs locktime]
   (->Transaction version tx-ins tx-outs locktime))
-
-(defn- take-drop [n coll] [(take n coll) (drop n coll)])
 
 (defn- read-varint-things
   [f bytes*]
@@ -32,39 +51,41 @@
 
   Returns a `TxIn` and the unread bytes as a sequence."
   [bytes*]
-  (let [[prev-tx-le bytes*] (take-drop 32 bytes*)
-        [prev-index-le bytes*] (take-drop 4 bytes*)
+  (let [[prev-tx-le bytes*] (split-at 32 bytes*)
+        [prev-index-le bytes*] (split-at 4 bytes*)
         [script-sig bytes*] (script/parse bytes*)
-        [sequence-le bytes*] (take-drop 4 bytes*)]
-    [(->TxIn (e/bytes->hex (reverse prev-tx-le))
-             (e/bytes-lil-e->pos-biginteger prev-index-le)
-             script-sig
-             (e/bytes-lil-e->pos-biginteger sequence-le)) bytes*]))
+        [sequence-le bytes*] (split-at 4 bytes*)]
+    [(->tx-in (e/bytes->hex (reverse prev-tx-le))
+              (e/bytes-lil-e->pos-biginteger prev-index-le)
+              script-sig
+              (e/bytes-lil-e->pos-biginteger sequence-le)) bytes*]))
 
 (defn- serialize-tx-in
   [{:keys [prev-tx prev-index script-sig sequence*] :as tx-in}]
   (concat (reverse (e/pad 32 (e/hex->bytes prev-tx)))
-          (e/unsigned-bytes-lil-e prev-index 4)
+          (e/BI->bytes prev-index {:pad 4 :signed? false :endian :little})
           (script/serialize script-sig)
-          (e/unsigned-bytes-lil-e sequence* 4)))
+          (e/BI->bytes sequence* {:pad 4 :signed? false :endian :little})))
 
 (defn- read-tx-out
   [bytes*]
-  (let [[amount-le bytes*] (take-drop 8 bytes*)
+  (let [[amount-le bytes*] (split-at 8 bytes*)
         [script-pubkey bytes*] (script/parse bytes*)]
-    [(->TxOut (e/bytes-lil-e->pos-biginteger amount-le) script-pubkey) bytes*]))
+    [(->tx-out (e/bytes-lil-e->pos-biginteger amount-le) script-pubkey)
+     bytes*]))
 
 (defn- serialize-tx-out
   [{:keys [amount script-pubkey] :as tx-out}]
-  (concat (e/unsigned-bytes-lil-e amount 8) (script/serialize script-pubkey)))
+  (concat (e/BI->bytes amount {:pad 8 :signed? false :endian :little})
+          (script/serialize script-pubkey)))
 
 (defn parse
   [bytes*]
-  (let [[version-bytes bytes*] (take-drop 4 bytes*)
+  (let [[version-bytes bytes*] (split-at 4 bytes*)
         version (e/bytes-lil-e->pos-biginteger version-bytes)
         [tx-ins bytes*] (read-varint-things read-tx-in bytes*)
         [tx-outs bytes*] (read-varint-things read-tx-out bytes*)
-        [locktime-le bytes*] (take-drop 4 bytes*)]
+        [locktime-le bytes*] (split-at 4 bytes*)]
     (->tx version tx-ins tx-outs (e/bytes-lil-e->pos-biginteger locktime-le))))
 
 (defn serialize
@@ -141,29 +162,43 @@
                           (map #(tx-in-amount % tx-fetcher) tx-ins))]
     (biginteger-subtract in-amount out-amount)))
 
+(def sighash-all 1)
+(def sighash-none 2)
+(def sighash-single 3)
+(def sighash-anyonecanpay 0x80)
+
 (defn sighash
-  "Converts a transaction to the signature hash, as a BigInteger."
-  [tx tx-fetcher hash-type]
+  "Returns the hash that needs to get signed for index `input-index` as a
+  `BigInteger`."
+  [tx tx-fetcher input-index]
   (-> tx
       (update :tx-ins
               (fn [tx-ins]
-                (map #(assoc % :script-sig (tx-in-script-pubkey % tx-fetcher))
-                     tx-ins)))
+                (map-indexed
+                 (fn [idx tx-in]
+                   (assoc tx-in
+                          :script-sig
+                          (if (= idx input-index)
+                            (tx-in-script-pubkey tx-in tx-fetcher)
+                            empty-script)))
+                 tx-ins)))
       (serialize)
-      (into (e/BI->bytes (biginteger hash-type)
+      (into (e/BI->bytes (biginteger sighash-all)
                          {:pad 4 :endian :little :signed? false}))
       (e/hash256)
       (e/bytes->pos-biginteger)))
 
 (defn verify
   [{:keys [tx-ins] :as tx} tx-fetcher]
-  (let [z (sighash tx tx-fetcher (byte 1))]
-    (and (>= (fee tx tx-fetcher) 0)
-         (every? #(script/evaluate (script/combine
-                                    (tx-in-script-pubkey % tx-fetcher)
-                                    (:script-sig %))
-                                   z)
-                 tx-ins))))
+  (and (>= (fee tx tx-fetcher) 0)
+       (every?
+        identity
+        (map-indexed (fn [idx tx-in]
+                       (script/evaluate (script/combine
+                                         (tx-in-script-pubkey tx-in tx-fetcher)
+                                         (:script-sig tx-in))
+                                        (sighash tx tx-fetcher idx)))
+                     tx-ins))))
 
 (comment (def h (->CachedHttpFetcher (atom {}) {:testnet? true})))
 (comment (def p (->CachedHttpFetcher (atom {}) {:testnet? false})))
@@ -194,3 +229,8 @@
     "27e0c5994dec7824e56dec6b2fcb342eb7cdb0d0957c2fce9882f715e85d81a6"]
    #_(sighash tx p (byte 1))
    (verify tx p)))
+
+(comment
+ (-> (fetch p
+            "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b")
+     (valid-amounts? h)))

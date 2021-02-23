@@ -19,7 +19,7 @@
   [bytes*]
   (if (= (first bytes*) 0) (rest bytes*) bytes*))
 
-(defn- add-sign
+(defn add-sign
   "Adds a leading byte 0 if the first item in `bytes*`'s first bit is not 0.
 
   Notably this means this only adds positive signs. Don't expect good things if
@@ -135,6 +135,8 @@
   {:pre [(>= x (biginteger 0))]}
   (unsigned-bytes x 32))
 
+(defn bytes= [a b] (= (seq a) (seq b)))
+
 (def ^:private b58-alphabet
   "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 (def ^:private b58-ch->v
@@ -153,6 +155,7 @@
        result))))
 
 (defn base58->bytes
+  "Converts a base58 string into a sequence of bytes."
   [b58]
   (BI->bytes (reduce (fn [accum ch]
                        (.add (.multiply accum (biginteger 58))
@@ -162,22 +165,27 @@
 
 (defn sec-uncompressed
   "Encodes a `point` with uncompressed SEC format, where `:x` and `:y` of the
-  `point` are finite fields."
+  `point` are finite fields. Returns a vector of bytes."
   [{:keys [x y] :as point}]
-  (cons (byte 4)
-        (concat (unsigned-bytes-32 (:number x))
-                (unsigned-bytes-32 (:number y)))))
+  {:post [(vector? %)]}
+  (vec (cons (byte 4)
+             (concat (unsigned-bytes-32 (:number x))
+                     (unsigned-bytes-32 (:number y))))))
 
 (defn sec-compressed
   "Encodes a `point` with compressed SEC format, where `:x` and `:y` of the
-  `point` are finite fields."
+  `point` are finite fields. Returns a vector of bytes."
   [{:keys [x y] :as point}]
-  (cons (byte (if (= (.mod (:number y) (biginteger 2)) 0) 2 3))
-        (unsigned-bytes-32 (:number x))))
+  {:post [(vector? %)]}
+  (vec (cons (byte (if (= (.mod (:number y) (biginteger 2)) 0) 2 3))
+             (unsigned-bytes-32 (:number x)))))
 
 (defn sec
-  [point {:keys [compressed?]}]
-  (if compressed? (sec-compressed point) (sec-uncompressed point)))
+  "Encodes a public key point using SEC format. Returns a vector of bytes."
+  ([point] (sec point {:compressed? true}))
+  ([point {:keys [compressed?]}]
+   {:post [(vector? %)]}
+   (if compressed? (sec-compressed point) (sec-uncompressed point))))
 
 (defn parse-sec
   "Parses an SEC formatted string into a secp256k1 point."
@@ -206,8 +214,10 @@
 
 
 (defn der
-  "Encodes a secp256k1 signature to DER format."
+  "Encodes a secp256k1 signature to DER format, returning the result as a
+  vector of bytes."
   [{:keys [r s] :as signature}]
+  {:post [(vector? %)]}
   (letfn [(cons-count [bytes*] (cons (count bytes*) bytes*))
           (cons-marker [bytes*] (cons (byte 0x02) bytes*))
           (cons-start [bytes*] (cons (byte 0x30) bytes*))]
@@ -220,7 +230,8 @@
                     cons-count
                     cons-marker))
         cons-count
-        cons-start)))
+        cons-start
+        vec)))
 
 (defn parse-der
   "Parses a DER-formatted, secp256k1 signature."
@@ -248,10 +259,12 @@
 (def ^{:doc "Two rounds of sha256"} hash256 (comp sha256 sha256))
 (def ^{:doc "sha256 followed by ripemd160"} hash160 (comp ripemd160 sha256))
 
+(defn- checksum [bytes*] (take 4 (hash256 bytes*)))
+
 (defn base58-with-checksum
   "Adds 4 bytes of the hash256 checksum and then encodes using base 58."
   [bytes*]
-  (bytes->base58 (concat bytes* (take 4 (hash256 bytes*)))))
+  (bytes->base58 (concat bytes* (checksum bytes*))))
 
 (defn point->hash160
   "Does hash160 on an SEC formatted point (compressed or uncompressed)."
@@ -260,12 +273,27 @@
    (hash160 (sec point {:compressed? compressed?}))))
 
 (defn point->address
-  "Converts a public key point to a Bitcoin address (as a string)."
+  "Hashes and encodes a public key point to a Bitcoin address (as a string)."
   ([point] (point->address point nil))
   ([point {:keys [testnet? compressed?] :or {testnet? false compressed? true}}]
    (base58-with-checksum (cons (byte (if testnet? 0x6f 0))
                                (point->hash160 point
                                                {:compressed? compressed?})))))
+
+(defn address->hash
+  "Extracts the hash from an address.
+
+  Checks that the address checksum is valid and throws an exception when it is
+  not."
+  [address]
+  (let [bytes* (base58->bytes address)
+        [hash* provided-checksum] (split-at (- (count bytes*) 4) bytes*)
+        expected-checksum (checksum hash*)]
+    (when-not (bytes= expected-checksum provided-checksum)
+      (throw (ex-info "invalid checksum for address"
+                      {:address address
+                       :expected (bytes->hex expected-checksum)})))
+    (drop 1 hash*)))
 
 (defn wif
   "Encodes a secret using Wallet Import Format (WIF)."
