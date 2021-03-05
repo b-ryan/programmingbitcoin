@@ -35,7 +35,7 @@
         s (biginteger
            0x68342ceff8935ededd102dd876ffd6ba72d6a427a3edb13d26eb0781cb423c4)
         sig (s256/->Signature r s)]
-    (is (s256/valid-signature? point z sig))))
+    (is (s256/valid-signature? sig point z))))
 
 (deftest signature-verification-2
   (let [point
@@ -49,10 +49,10 @@
         s (biginteger
            0xc7207fee197d27c618aea621406f6bf5ef6fca38681d82b2f06fddbdce6feab6)
         sig (s256/->Signature r s)]
-    (is (s256/valid-signature? point z sig))))
+    (is (s256/valid-signature? sig point z))))
 
 (deftest sign
-  (let [pk (s256/secret->private-key (rand-biginteger s256/N))
+  (let [pk (s256/secret->private-key (s256/rand-secret))
         z (rand-biginteger (.pow (biginteger 2) (biginteger 256)))
         sig (s256/sign pk z)]
-    (is (s256/valid-signature? (:point pk) z sig))))
+    (is (s256/valid-signature? sig (:point pk) z))))

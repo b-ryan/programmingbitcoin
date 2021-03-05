@@ -1,6 +1,7 @@
 (ns programming-bitcoin.script-test
   (:require [clojure.test :refer [deftest testing is]]
             [programming-bitcoin.encodings :as e]
+            [programming-bitcoin.secp256k1 :as s256]
             [programming-bitcoin.script :as s]))
 
 (deftest parse
@@ -109,3 +110,41 @@
      script (s/->script [s/op-checksig s/op-equalverify pubkey-hash s/op-hash160
                          s/op-dup pubkey-sec sig-der])]
     (is (not (s/evaluate script z)))))
+
+(defn- gen-sigs
+  [z n]
+  (let [privkeys (repeatedly n (comp s256/secret->private-key s256/rand-secret))
+        pubkeys (map :point privkeys)
+        sigs (map #(s256/sign % z) privkeys)]
+    [pubkeys sigs]))
+
+(defn- ->bare-multisig
+  [pubkeys sigs]
+  (let [m {1 s/op-1 2 s/op-2 3 s/op-3 4 s/op-4 5 s/op-5}]
+    (s/->script (as-> [s/op-checkmultisig (m (count pubkeys))] $
+                  (into $ (map e/sec pubkeys))
+                  (conj $ (m (count sigs)))
+                  (into $
+                        (->> sigs
+                             shuffle
+                             (map e/der)))
+                  (conj $ s/op-0)))))
+
+(deftest bare-multisig
+  (let [z (biginteger
+           0x7c076ff316692a3d7eb3c3bb0f8b1488cf72e1afcd929e29307032997a838a3d)
+        [pubkeys sigs] (gen-sigs z 4)
+        script (->bare-multisig pubkeys (take 3 sigs))]
+    (is (s/evaluate script z))))
+
+(deftest bare-multisig-invalid
+  (let [z (biginteger
+           0x7c076ff316692a3d7eb3c3bb0f8b1488cf72e1afcd929e29307032997a838a3d)
+        [pubkeys sigs] (gen-sigs z 4)]
+    ;; Here we take the first 3 pubkeys, but the last 2 sigs. The final sig
+    ;; will be for a pubkey that's not used. So we should get a failure in this
+    ;; 2 of 4 sigs scenario.
+    (is (not (s/evaluate (->bare-multisig (take 3 pubkeys) (drop 2 sigs)) z)))
+    ;; But if we instead use the first 2 signatures, those are valid so we get
+    ;; success.
+    (is (s/evaluate (->bare-multisig (take 3 pubkeys) (take 2 sigs)) z))))

@@ -4,4 +4,5 @@
  :fn-map {"defonce" :arg1-body
           "defn-op-1" :arg1-body
           "defn-op-2" :arg1-body
-          "testing" :arg1}}
+          "testing" :arg1
+          "haltlet" :binding}}

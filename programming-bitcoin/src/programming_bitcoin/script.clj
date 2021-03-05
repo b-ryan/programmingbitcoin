@@ -52,7 +52,8 @@
           169 op-hash160
           170 op-hash256
           172 op-checksig
-          173 op-checksigverify})
+          173 op-checksigverify
+          174 op-checkmultisig})
 
 (def pushdata-bytes {op-pushdata1 1 op-pushdata2 2 op-pushdata4 4})
 
@@ -140,15 +141,21 @@
   invalid and should stop execution."
   #'eval-op-dispatch)
 
+(defn- pop-peek
+  "Returns a new stack, with `n` items popped off, and the `n` items that were
+  popped.
+
+  If there are fewer than `n` items in `v`, then `[::halt nil]` is returned."
+  [n v]
+  (if (< (count v) n)
+    ::halt
+    (let [split (- (count v) n)] [(subvec v 0 split) (subvec v split)])))
+
 (defn- op-helper
   [f n-args stack]
   {:pre [(vector? stack)]}
-  (if (< (count stack) n-args)
-    ::halt
-    (let [split (- (count stack) n-args)
-          args (subvec stack split)
-          new-stack (subvec stack 0 split)]
-      (apply f new-stack (reverse args)))))
+  (let [[new-stack args :as x] (pop-peek n-args stack)]
+    (if (= x ::halt) ::halt (apply f new-stack (reverse args)))))
 
 (defmacro defn-op-0
   [op [stack-sym z-sym] & body]
@@ -236,9 +243,43 @@
   [stack z pubkey-bytes sig-bytes]
   (let [sig (e/parse-der sig-bytes)
         pubkey (e/parse-sec pubkey-bytes)]
-    (stack-bool stack (secp256k1/valid-signature? pubkey z sig))))
+    (stack-bool stack (secp256k1/valid-signature? sig pubkey z))))
 
 (defn-op-> op-checksigverify [op-checksig op-verify])
+
+(defmacro wrap-halt
+  [stack & body]
+  `(if (= ~stack ::halt) [::halt nil] (do ~@body)))
+
+(defmacro haltlet
+  [bindings & body]
+  (let [g (gensym)
+        wrapped-bindings (reduce
+                          (fn [accum [l r]]
+                            (conj accum g `(if (= ~g ::halt) ::halt ~r) l g))
+                          [g nil]
+                          (partition 2 bindings))]
+    `(let [~@wrapped-bindings] (if (= ~g ::halt) ::halt (do ~@body)))))
+
+(defmethod eval-op op-checkmultisig
+  [_ stack z]
+  (haltlet [[stack [n-bytes]] (pop-peek 1 stack)
+            n (decode-num n-bytes)
+            [stack pubkeys-sec] (pop-peek n stack)
+            pubkeys (map e/parse-sec pubkeys-sec)
+            [stack [m-bytes]] (pop-peek 1 stack)
+            m (decode-num m-bytes)
+            [stack sigs-der] (pop-peek m stack)
+            sigs (map e/parse-der sigs-der)
+            [stack discard] (pop-peek 1 stack)]
+    (stack-bool
+     stack
+     (=
+      (->> sigs
+           (map (fn [sig] (some #(secp256k1/valid-signature? sig % z) pubkeys)))
+           (filter identity)
+           count)
+      m))))
 
 (defn evaluate
   [{:keys [cmds] :as script} ^BigInteger z]

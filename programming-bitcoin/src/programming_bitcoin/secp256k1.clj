@@ -65,7 +65,7 @@
 (defn valid-signature?
   "Returns boolean indicating whether signature `signature` for signature hash
   `z` is a valid signature for the public key `point`."
-  [point ^BigInteger z {:keys [^BigInteger r ^BigInteger s] :as signature}]
+  [{:keys [^BigInteger r ^BigInteger s] :as signature} point ^BigInteger z]
   (let [s-inv (.modPow s (.subtract N (biginteger 2)) N)
         u (.mod (.multiply z s-inv) N)
         v (.mod (.multiply r s-inv) N)
@@ -82,20 +82,27 @@
         s (biginteger
            0x68342ceff8935ededd102dd876ffd6ba72d6a427a3edb13d26eb0781cb423c4)
         sig (->sig r s)]
-    (valid-signature? point z sig))
+    (valid-signature? sig point z))
 
 (defrecord PrivateKey [secret point])
 
 (defn secret->private-key
+  "Converts a BigInteger `secret` into a `PrivateKey`, which contains the
+  secret and the public key point."
   [secret]
   {:pre [(integer? secret)]}
   (->PrivateKey (biginteger secret) (ec/scalar-mul G secret)))
+
+(defn rand-secret
+  "Returns a random BigInteger between 0 and `N`."
+  []
+  (rand-biginteger N))
 
 (defn sign
   [{:keys [^BigInteger secret point] :as private-key} z]
   {:pre [(integer? z)]}
   (let [z (biginteger z)
-        k (rand-biginteger N)
+        k (rand-secret)
         r (:number (:x (ec/scalar-mul G k)))
         k-inv (.modPow k (.subtract N (biginteger 2)) N)
         s (-> (.multiply secret r)
